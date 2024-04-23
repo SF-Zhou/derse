@@ -1,0 +1,14 @@
+[workspace]
+members = [
+    "derse",
+    "derse-derive"
+]
+resolver = "2"
+
+[workspace.package]
+authors = ["SF-Zhou <sfzhou.scut@gmail.com>"]
+edition = "2021"
+homepage = "https://github.com/SF-Zhou/derse"
+repository = "https://github.com/SF-Zhou/derse"
+description = "A simple binary serialization protocol for Rust."
+license = "MIT"
