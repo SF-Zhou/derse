@@ -19,7 +19,7 @@ jobs:
     - name: Run tests
       run: |
         cargo install cargo-llvm-cov
-        cargo llvm-cov --lib --ignore-filename-regex lib.rs --lcov --output-path lcov.info
+        cargo llvm-cov --lcov --output-path lcov.info
 
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v4
