@@ -154,6 +154,29 @@ impl<'a, Item: Serialization<'a>> Serialization<'a> for Vec<Item> {
     }
 }
 
+impl<'a, Item: Serialization<'a>> Serialization<'a> for Option<Item> {
+    fn serialize_to<T: Serializer>(&self, serializer: &mut T) {
+        if let Some(item) = self {
+            item.serialize_to(serializer);
+            true.serialize_to(serializer);
+        } else {
+            false.serialize_to(serializer);
+        }
+    }
+
+    fn deserialize_from(buf: &mut &'a [u8]) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        let has = bool::deserialize_from(buf)?;
+        if has {
+            Ok(Some(Item::deserialize_from(buf)?))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -188,11 +211,8 @@ mod tests {
             let bytes2: DownwardBytes = der.serialize();
             assert_eq!(bytes, bytes2);
 
-            let bytes = [2, 0xC0, 0xAF];
-            assert!(Cow::<str>::deserialize(&bytes).is_err());
-
-            let bytes = [128];
-            assert!(Cow::<str>::deserialize(&bytes).is_err());
+            assert!(Cow::<str>::deserialize(&[2, 0xC0, 0xAF]).is_err());
+            assert!(Cow::<str>::deserialize(&[128]).is_err());
         }
 
         {
@@ -211,11 +231,31 @@ mod tests {
             let der = Vec::<String>::deserialize(&bytes).unwrap();
             assert_eq!(ser, der);
 
-            let bytes = vec![128];
-            assert!(Vec::<u8>::deserialize(&bytes).is_err());
+            assert!(Vec::<u8>::deserialize(&[128]).is_err());
+            assert!(Vec::<u8>::deserialize(&[1]).is_err());
+            assert!(Vec::<u8>::deserialize(&[0]).unwrap().is_empty());
+        }
 
-            let bytes = vec![1];
-            assert!(Vec::<u8>::deserialize(&bytes).is_err());
+        {
+            let ser = Some("hello".to_string());
+            let bytes: DownwardBytes = ser.serialize();
+            assert_eq!(bytes.len(), 1 + 1 + 5);
+            let der = Option::<String>::deserialize(&bytes).unwrap();
+            assert_eq!(ser, der);
+            let der = Vec::<String>::deserialize(&bytes).unwrap();
+            assert_eq!(ser.as_ref(), der.first());
+
+            let ser = None;
+            let bytes: DownwardBytes = ser.serialize();
+            assert_eq!(bytes.len(), 1);
+            let der = Option::<String>::deserialize(&bytes).unwrap();
+            assert_eq!(ser, der);
+            let der = Vec::<String>::deserialize(&bytes).unwrap();
+            assert_eq!(ser.as_ref(), der.first());
+
+            assert!(Option::<String>::deserialize(&[128]).is_err());
+            assert!(Option::<String>::deserialize(&[1]).is_err());
+            assert!(Option::<String>::deserialize(&[0]).unwrap().is_none());
         }
 
         {
