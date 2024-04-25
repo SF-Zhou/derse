@@ -31,10 +31,10 @@ impl Serialization<'_> for VarInt64 {
                     return Ok(Self(v));
                 }
             } else {
-                return Err(Error::VariantIsShort);
+                return Err(Error::VarintIsShort);
             }
         }
-        Err(Error::VariantIsShort)
+        Err(Error::VarintIsShort)
     }
 }
 

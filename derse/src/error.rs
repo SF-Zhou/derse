@@ -3,7 +3,7 @@ pub enum Error {
     DataIsShort { expect: usize, actual: usize },
     InvalidBool(u8),
     InvalidString,
-    VariantIsShort,
+    VarintIsShort,
 }
 
 impl std::fmt::Display for Error {
