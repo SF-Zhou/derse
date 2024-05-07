@@ -98,10 +98,10 @@ impl std::ops::Deref for DownwardBytes {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn test_downward_bytes_create() {
-        use super::DownwardBytes;
-
         assert_eq!(DownwardBytes::new().capacity(), 0);
 
         let mut bytes = DownwardBytes::with_capacity(8);
@@ -119,8 +119,6 @@ mod tests {
 
     #[test]
     fn test_downward_bytes_prepend() {
-        use super::*;
-
         let mut bytes = DownwardBytes::new();
         assert!(bytes.is_empty());
         assert_eq!(bytes.len(), 0);

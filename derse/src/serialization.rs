@@ -1,6 +1,8 @@
 use std::borrow::Cow;
 
 use super::{Error, Result, Serializer, VarInt64};
+use std::collections::HashSet;
+use std::hash::Hash;
 
 pub trait Serialization<'a> {
     fn serialize<S: Serializer + Default>(&self) -> S {
@@ -179,6 +181,27 @@ impl<'a, Item: Serialization<'a>> Serialization<'a> for Vec<Item> {
     }
 }
 
+impl<'a, Item: Eq + Hash + Serialization<'a>> Serialization<'a> for HashSet<Item> {
+    fn serialize_to<S: Serializer>(&self, serializer: &mut S) {
+        for item in self.iter() {
+            item.serialize_to(serializer);
+        }
+        VarInt64(self.len() as u64).serialize_to(serializer);
+    }
+
+    fn deserialize_from(buf: &mut &'a [u8]) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        let len = VarInt64::deserialize_from(buf)?.0 as usize;
+        let mut out = HashSet::with_capacity(len);
+        for _ in 0..len {
+            out.insert(Item::deserialize_from(buf)?);
+        }
+        Ok(out)
+    }
+}
+
 impl<'a, Item: Serialization<'a>> Serialization<'a> for Option<Item> {
     fn serialize_to<S: Serializer>(&self, serializer: &mut S) {
         if let Some(item) = self {
@@ -204,11 +227,11 @@ impl<'a, Item: Serialization<'a>> Serialization<'a> for Option<Item> {
 
 #[cfg(test)]
 mod tests {
+    use super::super::*;
+    use super::*;
+
     #[test]
     fn test_serialization() {
-        use super::super::*;
-        use super::*;
-
         for ser in [u64::MIN, u64::MAX] {
             let bytes = ser.serialize::<DownwardBytes>();
             assert_eq!(bytes.len(), 8);
@@ -263,6 +286,17 @@ mod tests {
             assert!(Vec::<u8>::deserialize(&[128]).is_err());
             assert!(Vec::<u8>::deserialize(&[1]).is_err());
             assert!(Vec::<u8>::deserialize(&[0]).unwrap().is_empty());
+        }
+
+        {
+            let ser: HashSet<String> = "hello world !".split(' ').map(|s| s.to_owned()).collect();
+            let bytes: DownwardBytes = ser.serialize();
+            let der = HashSet::<String>::deserialize(&bytes).unwrap();
+            assert_eq!(ser, der);
+
+            assert!(HashSet::<u8>::deserialize(&[128]).is_err());
+            assert!(HashSet::<u8>::deserialize(&[1]).is_err());
+            assert!(HashSet::<u8>::deserialize(&[0]).unwrap().is_empty());
         }
 
         {

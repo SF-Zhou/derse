@@ -40,10 +40,10 @@ impl Serialization<'_> for VarInt64 {
 
 #[cfg(test)]
 mod tests {
+    use crate::*;
+
     #[test]
     fn test_varint64() {
-        use crate::*;
-
         for v in [u64::MIN, 1, 10, 127, 128, 255, 256, u64::MAX] {
             let ser = VarInt64(v);
             let bytes = ser.serialize::<DownwardBytes>();
