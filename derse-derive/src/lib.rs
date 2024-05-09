@@ -19,15 +19,14 @@ pub fn derse_derive(input: TokenStream) -> TokenStream {
         }) => {
             for f in fields.named {
                 let field_name = &f.ident;
-                let field_type = &f.ty;
                 serialize_fields.push(quote! {
                     self.#field_name.serialize_to(serializer);
                 });
                 deserialize_fields.push(quote! {
                     #field_name: if buf.is_empty() {
-                        #field_type::default()
+                        Default::default()
                     } else {
-                        #field_type::deserialize_from(&mut buf)?
+                        ::derse::Serialization::deserialize_from(&mut buf)?
                     },
                 });
             }
@@ -41,17 +40,16 @@ pub fn derse_derive(input: TokenStream) -> TokenStream {
             fields: Fields::Unnamed(fields),
             ..
         }) => {
-            for (i, f) in fields.unnamed.iter().enumerate() {
+            for (i, _) in fields.unnamed.iter().enumerate() {
                 let index = syn::Index::from(i);
-                let field_type = &f.ty;
                 serialize_fields.push(quote! {
                     self.#index.serialize_to(serializer);
                 });
                 deserialize_fields.push(quote! {
                     if buf.is_empty() {
-                        #field_type::default()
+                        Default::default()
                     } else {
-                        #field_type::deserialize_from(&mut buf)?
+                        ::derse::Serialization::deserialize_from(&mut buf)?
                     },
                 });
             }
