@@ -28,6 +28,18 @@ impl DownwardBytes {
         self.0.capacity()
     }
 
+    pub fn clear(&mut self) {
+        unsafe { self.0.set_len(self.capacity()) };
+    }
+
+    pub fn clear_and_shrink_to(&mut self, capacity: usize) {
+        if self.capacity() <= capacity {
+            unsafe { self.0.set_len(self.capacity()) };
+        } else {
+            *self = Self::with_capacity(capacity);
+        }
+    }
+
     pub fn as_slice(&self) -> &[u8] {
         unsafe { std::slice::from_raw_parts(self.0.as_ptr().byte_add(self.offset()), self.len()) }
     }
@@ -146,5 +158,21 @@ mod tests {
             assert!(!serializer.is_empty());
         }
         to_serializer(&bytes);
+
+        bytes.clear();
+        assert!(bytes.is_empty());
+        assert_eq!(bytes.capacity(), N.next_power_of_two());
+
+        bytes.clear_and_shrink_to(N.next_power_of_two());
+        assert!(bytes.is_empty());
+        assert_eq!(bytes.capacity(), N.next_power_of_two());
+
+        bytes.clear_and_shrink_to(N);
+        assert!(bytes.is_empty());
+        assert_eq!(bytes.capacity(), N);
+
+        bytes.clear_and_shrink_to(N.next_power_of_two());
+        assert!(bytes.is_empty());
+        assert_eq!(bytes.capacity(), N);
     }
 }
