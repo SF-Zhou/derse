@@ -1,14 +1,19 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::{parse_macro_input, Data, DataStruct, DeriveInput, Fields};
 
 #[proc_macro_derive(Derse)]
 pub fn derse_derive(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
 
-    let name = &ast.ident;
+    let name = if ast.generics.lifetimes().count() > 0 {
+        let name = &ast.ident;
+        quote! { #name::<'a> }
+    } else {
+        ast.ident.to_token_stream()
+    };
     let mut serialize_fields = Vec::new();
     let mut deserialize_fields = Vec::new();
 
