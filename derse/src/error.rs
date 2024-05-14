@@ -4,6 +4,7 @@ pub enum Error {
     InvalidBool(u8),
     InvalidString,
     VarintIsShort,
+    InvalidType,
 }
 
 impl std::fmt::Display for Error {

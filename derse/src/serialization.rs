@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 
 use super::{Error, Result, Serializer, VarInt64};
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::hash::Hash;
 
@@ -202,6 +203,31 @@ impl<'a, Item: Eq + Hash + Serialization<'a>> Serialization<'a> for HashSet<Item
     }
 }
 
+impl<'a, K: Eq + Hash + Serialization<'a>, V: Serialization<'a>> Serialization<'a>
+    for HashMap<K, V>
+{
+    fn serialize_to<S: Serializer>(&self, serializer: &mut S) {
+        for item in self.iter() {
+            item.serialize_to(serializer);
+        }
+        VarInt64(self.len() as u64).serialize_to(serializer);
+    }
+
+    fn deserialize_from(buf: &mut &'a [u8]) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        let len = VarInt64::deserialize_from(buf)?.0 as usize;
+        let mut out = HashMap::with_capacity(len);
+        for _ in 0..len {
+            let key = K::deserialize_from(buf)?;
+            let value = V::deserialize_from(buf)?;
+            out.insert(key, value);
+        }
+        Ok(out)
+    }
+}
+
 impl<'a, Item: Serialization<'a>> Serialization<'a> for Option<Item> {
     fn serialize_to<S: Serializer>(&self, serializer: &mut S) {
         if let Some(item) = self {
@@ -224,6 +250,44 @@ impl<'a, Item: Serialization<'a>> Serialization<'a> for Option<Item> {
         }
     }
 }
+
+impl<'a, T: Serialization<'a>> Serialization<'a> for &T {
+    fn serialize_to<S: Serializer>(&self, serializer: &mut S) {
+        T::serialize_to(self, serializer);
+    }
+
+    fn deserialize_from(_buf: &mut &'a [u8]) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        Err(Error::InvalidType)
+    }
+}
+
+macro_rules! tuple_serialization {
+    (($($name:ident),+), ($($idx:tt),+)) => {
+        impl<'a, $($name),+> Serialization<'a> for ($($name,)+)
+        where
+            $($name: Serialization<'a>),+
+        {
+            fn serialize_to<S: Serializer>(&self, serializer: &mut S) {
+                $((self.$idx.serialize_to(serializer));)+
+            }
+
+            fn deserialize_from(buf: &mut &'a [u8]) -> Result<Self>
+            where
+                Self: Sized,
+            {
+                Ok(($($name::deserialize_from(buf)?,)+))
+            }
+        }
+    };
+}
+
+tuple_serialization!((A), (0));
+tuple_serialization!((A, B), (1, 0));
+tuple_serialization!((A, B, C), (2, 1, 0));
+tuple_serialization!((A, B, C, D), (3, 2, 1, 0));
 
 #[cfg(test)]
 mod tests {
@@ -272,6 +336,11 @@ mod tests {
             let bytes: DownwardBytes = ser.serialize();
             let der: String = String::deserialize(&bytes).unwrap();
             assert_eq!(ser, der);
+
+            assert!(matches!(
+                <&String>::deserialize(&bytes).unwrap_err(),
+                Error::InvalidType
+            ));
 
             assert!(String::deserialize(&bytes[..1]).is_err());
             assert!(String::deserialize(&bytes[..5]).is_err());
@@ -342,6 +411,32 @@ mod tests {
 
         {
             assert!(u32::deserialize(&[0, 1, 2]).is_err());
+        }
+
+        {
+            let ser: HashMap<String, u32> = (0..10).map(|i| (i.to_string(), i)).collect();
+            let bytes: DownwardBytes = ser.serialize();
+            let der = HashMap::<String, u32>::deserialize(&bytes).unwrap();
+            assert_eq!(ser, der);
+
+            let mut der = Vec::<(String, u32)>::deserialize(&bytes).unwrap();
+            assert_eq!(der.len(), 10);
+            der.sort();
+            assert_eq!(der[0].0, "0");
+            assert_eq!(der[9].0, "9");
+        }
+
+        {
+            let ser = (String::from("hello"), 64u32);
+            let bytes: DownwardBytes = ser.serialize();
+            assert_eq!(bytes.len(), 1 + 5 + 4);
+            let der: (String, u32) = Serialization::deserialize(&bytes).unwrap();
+            assert_eq!(ser, der);
+
+            let der: (String, u16, u16) = Serialization::deserialize(&bytes).unwrap();
+            assert_eq!(ser.0, der.0);
+            assert_eq!(ser.1, der.1 as _);
+            assert_eq!(0, der.2);
         }
     }
 }
