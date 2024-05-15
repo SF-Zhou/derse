@@ -1,4 +1,4 @@
-use super::Serializer;
+use super::{Result, Serializer};
 
 #[derive(Default)]
 pub struct DownwardBytes(Vec<u8>);
@@ -79,8 +79,9 @@ impl DownwardBytes {
 }
 
 impl Serializer for DownwardBytes {
-    fn prepend(&mut self, data: impl AsRef<[u8]>) {
-        self.prepend(data)
+    fn prepend(&mut self, data: impl AsRef<[u8]>) -> Result<()> {
+        self.prepend(data);
+        Ok(())
     }
 
     fn len(&self) -> usize {
@@ -154,10 +155,7 @@ mod tests {
         assert_eq!(bytes.len(), N);
         assert_eq!(bytes.capacity(), N.next_power_of_two());
 
-        fn to_serializer(serializer: &impl Serializer) {
-            assert!(!serializer.is_empty());
-        }
-        to_serializer(&bytes);
+        assert!(!Serializer::is_empty(&bytes));
 
         bytes.clear();
         assert!(bytes.is_empty());
