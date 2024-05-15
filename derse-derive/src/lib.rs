@@ -25,7 +25,7 @@ pub fn derse_derive(input: TokenStream) -> TokenStream {
             for f in fields.named {
                 let field_name = &f.ident;
                 serialize_fields.push(quote! {
-                    self.#field_name.serialize_to(serializer);
+                    self.#field_name.serialize_to(serializer)?;
                 });
                 deserialize_fields.push(quote! {
                     #field_name: if buf.is_empty() {
@@ -48,7 +48,7 @@ pub fn derse_derive(input: TokenStream) -> TokenStream {
             for (i, _) in fields.unnamed.iter().enumerate() {
                 let index = syn::Index::from(i);
                 serialize_fields.push(quote! {
-                    self.#index.serialize_to(serializer);
+                    self.#index.serialize_to(serializer)?;
                 });
                 deserialize_fields.push(quote! {
                     if buf.is_empty() {
@@ -71,29 +71,19 @@ pub fn derse_derive(input: TokenStream) -> TokenStream {
 
     let gen = quote! {
         impl<'a> ::derse::Serialization<'a> for #name {
-            fn serialize_to<T: ::derse::Serializer>(&self, serializer: &mut T) {
+            fn serialize_to<T: ::derse::Serializer>(&self, serializer: &mut T) -> ::derse::Result<()> {
                 let start = serializer.len();
                 #(#serialize_fields)*
                 let len = serializer.len() - start;
-                ::derse::VarInt64(len as u64).serialize_to(serializer);
+                ::derse::VarInt64(len as u64).serialize_to(serializer)
             }
 
-            fn deserialize_from(buf: &mut &'a [u8]) -> ::derse::Result<Self>
+            fn deserialize_from<S: ::derse::Deserializer<'a>>(buf: &mut S) -> ::derse::Result<Self>
             where
                 Self: Sized,
             {
                 let len = ::derse::VarInt64::deserialize_from(buf)?.0 as usize;
-                if buf.len() < len {
-                    return Err(::derse::Error::DataIsShort {
-                        expect: len,
-                        actual: buf.len(),
-                    });
-                }
-
-                let current = &buf[..len];
-                *buf = &buf[len..];
-
-                let mut buf = current;
+                let mut buf = buf.advance(len)?;
                 Ok(#deserialize_statement)
             }
         }

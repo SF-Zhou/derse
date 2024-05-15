@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use derse::{Derse, DownwardBytes, Serialization};
+use derse::{BytesArray, Derse, DownwardBytes, Serialization};
 
 #[test]
 fn test_named_struct() {
@@ -14,10 +14,12 @@ fn test_named_struct() {
         x: u64::MAX,
         y: "hello derse!".to_owned(),
     };
-    let bytes = ser.serialize::<DownwardBytes>();
+    let bytes = ser.serialize::<DownwardBytes>().unwrap();
     assert_eq!(bytes.len(), 1 + 8 + 1 + 12);
 
-    let der = A::deserialize(&bytes).unwrap();
+    assert_eq!(ser.serialize::<usize>().unwrap(), bytes.len());
+
+    let der = A::deserialize(&bytes[..]).unwrap();
     assert_eq!(ser, der);
 }
 
@@ -27,10 +29,10 @@ fn test_unnamed_struct() {
     struct A(u32, u64, String);
 
     let ser = A(u32::MAX, u64::MAX, "hello derse!".to_owned());
-    let bytes = ser.serialize::<DownwardBytes>();
+    let bytes = ser.serialize::<DownwardBytes>().unwrap();
     assert_eq!(bytes.len(), 1 + 4 + 8 + 1 + 12);
 
-    let der = A::deserialize(&bytes).unwrap();
+    let der = A::deserialize(&bytes[..]).unwrap();
     assert_eq!(ser, der);
 }
 
@@ -44,10 +46,10 @@ fn test_compatibility() {
 
     {
         let ser = A1("hello derse!".to_owned(), 12138);
-        let bytes = ser.serialize::<DownwardBytes>();
+        let bytes = ser.serialize::<DownwardBytes>().unwrap();
         assert_eq!(bytes.len(), 1 + 1 + 12 + 8);
 
-        let der = A2::deserialize(&bytes).unwrap();
+        let der = A2::deserialize(&bytes[..]).unwrap();
         assert_eq!(ser.0, der.0);
         assert_eq!(ser.1, der.1);
         assert!(der.2.is_empty());
@@ -55,10 +57,10 @@ fn test_compatibility() {
 
     {
         let ser = A2("hello derse!".to_owned(), 12138, "more data".to_owned());
-        let bytes = ser.serialize::<DownwardBytes>();
+        let bytes = ser.serialize::<DownwardBytes>().unwrap();
         assert_eq!(bytes.len(), 1 + 1 + 12 + 8 + 1 + 9);
 
-        let der = A2::deserialize(&bytes).unwrap();
+        let der = A2::deserialize(&bytes[..]).unwrap();
         assert_eq!(ser.0, der.0);
         assert_eq!(ser.1, der.1);
     }
@@ -71,10 +73,16 @@ fn test_struct_with_lifetime() {
 
     {
         let ser = A(Cow::Owned("hello derse!".to_owned()));
-        let bytes = ser.serialize::<DownwardBytes>();
+        let bytes = ser.serialize::<DownwardBytes>().unwrap();
         assert_eq!(bytes.len(), 1 + 1 + 12);
 
-        let der = A::deserialize(&bytes).unwrap();
+        let der = A::deserialize(&bytes[..]).unwrap();
+        assert!(matches!(der.0, Cow::Borrowed(_)));
+        assert_eq!(ser.0, der.0);
+
+        let c = [bytes.as_ref()];
+        let mut vec = BytesArray::new(&c);
+        let der = A::deserialize_from(&mut vec).unwrap();
         assert!(matches!(der.0, Cow::Borrowed(_)));
         assert_eq!(ser.0, der.0);
     }
