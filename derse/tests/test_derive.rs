@@ -109,3 +109,28 @@ fn test_struct_with_generic() {
         assert_eq!(ser.1, der.1);
     }
 }
+
+#[test]
+fn test_struct_with_remain_buf() {
+    #[derive(Debug, Derse, PartialEq)]
+    struct V1 {
+        x: u64,
+    }
+
+    #[derive(Debug, Derse, PartialEq)]
+    struct V2 {
+        x: u64,
+        y: String,
+    }
+
+    let ser = V2 {
+        x: 233,
+        y: String::from("hello"),
+    };
+    let bytes = ser.serialize::<DownwardBytes>().unwrap();
+    let buf = &bytes[..];
+    let (der, remain) = V1::deserialize_and_split(buf).unwrap();
+    assert_eq!(der.x, ser.x);
+    let der = String::deserialize(remain).unwrap();
+    assert_eq!(der, ser.y);
+}

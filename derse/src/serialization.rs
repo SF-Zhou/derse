@@ -86,6 +86,21 @@ impl<'a> Serialization<'a> for &'a str {
     }
 }
 
+impl<'a> Serialization<'a> for Cow<'a, [u8]> {
+    fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
+        serializer.prepend(self)?;
+        VarInt64(self.len() as u64).serialize_to(serializer)
+    }
+
+    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        let len = VarInt64::deserialize_from(buf)?.0 as usize;
+        buf.pop(len)
+    }
+}
+
 impl<'a> Serialization<'a> for Cow<'a, str> {
     fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
         self.as_ref().serialize_to(serializer)
@@ -329,6 +344,10 @@ mod tests {
             let der = Cow::<str>::deserialize(&bytes[..]).unwrap();
             assert_eq!(ser, &der);
 
+            let der = Cow::<[u8]>::deserialize(&bytes[..]).unwrap();
+            assert_eq!(ser.len(), der.len());
+            let bytes: DownwardBytes = der.serialize().unwrap();
+
             let der = Cow::<String>::deserialize(&bytes[..]).unwrap();
             assert_eq!(ser, der.as_ref());
             let bytes: DownwardBytes = der.serialize().unwrap();
@@ -470,7 +489,7 @@ mod tests {
             let ser = ();
             let bytes = ser.serialize::<DownwardBytes>().unwrap();
             assert!(bytes.is_empty());
-            let _ = <()>::deserialize(&bytes[..]).unwrap();
+            <()>::deserialize(&bytes[..]).unwrap();
         }
     }
 }
