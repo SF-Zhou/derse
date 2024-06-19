@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, marker::PhantomData};
 
 use derse::{BytesArray, Derse, DownwardBytes, Serialization};
 
@@ -85,5 +85,27 @@ fn test_struct_with_lifetime() {
         let der = A::deserialize_from(&mut vec).unwrap();
         assert!(matches!(der.0, Cow::Borrowed(_)));
         assert_eq!(ser.0, der.0);
+    }
+}
+
+#[test]
+fn test_struct_with_generic() {
+    #[derive(Debug, Derse, PartialEq)]
+    struct A<'a, S: Default + Serialization<'a>>(i32, S, PhantomData<&'a ()>);
+
+    {
+        let ser = A(233, "hello".to_string(), Default::default());
+        let bytes = ser.serialize::<DownwardBytes>().unwrap();
+        assert_eq!(bytes.len(), 1 + 4 + 1 + 5);
+
+        let der = A::<String>::deserialize(&bytes[..]).unwrap();
+        assert_eq!(ser.0, der.0);
+        assert_eq!(ser.1, der.1);
+
+        let c = [bytes.as_ref()];
+        let mut vec = BytesArray::new(&c);
+        let der = A::<&str>::deserialize_from(&mut vec).unwrap();
+        assert_eq!(ser.0, der.0);
+        assert_eq!(ser.1, der.1);
     }
 }

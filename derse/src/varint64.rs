@@ -7,7 +7,7 @@ const B: u8 = 7;
 const M: u8 = (1 << B) - 1;
 
 impl<'a> Serialization<'a> for VarInt64 {
-    fn serialize_to<T: crate::Serializer>(&self, serializer: &mut T) -> Result<()> {
+    fn serialize_to<S: crate::Serializer>(&self, serializer: &mut S) -> Result<()> {
         let mut v = self.0;
         serializer.prepend([(v as u8) & M])?;
         v >>= B;
@@ -20,7 +20,7 @@ impl<'a> Serialization<'a> for VarInt64 {
         Ok(())
     }
 
-    fn deserialize_from<S: crate::Deserializer<'a>>(buf: &mut S) -> Result<Self>
+    fn deserialize_from<D: crate::Deserializer<'a>>(buf: &mut D) -> Result<Self>
     where
         Self: Sized,
     {

@@ -1,19 +1,28 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
-use quote::{quote, ToTokens};
-use syn::{parse_macro_input, Data, DataStruct, DeriveInput, Fields};
+use quote::quote;
+use syn::{parse_macro_input, Data, DataStruct, DeriveInput, Fields, Lifetime, LifetimeParam};
 
 #[proc_macro_derive(Derse)]
 pub fn derse_derive(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
 
-    let name = if ast.generics.lifetimes().count() > 0 {
-        let name = &ast.ident;
-        quote! { #name::<'a> }
+    let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
+    let mut generics = ast.generics.clone();
+    let (impl_generics, lifetime) = if let Some(lifetime) = ast.generics.lifetimes().next().cloned()
+    {
+        (impl_generics, quote! { #lifetime })
     } else {
-        ast.ident.to_token_stream()
+        let lifetime = Lifetime::new("'derse", proc_macro2::Span::call_site());
+        let lifetime_param = LifetimeParam::new(lifetime.clone());
+        let generic_param = syn::GenericParam::Lifetime(lifetime_param);
+        generics.params.insert(0, generic_param);
+        let (impl_generics, _, _) = generics.split_for_impl();
+        (impl_generics, quote! { #lifetime })
     };
+
+    let name = &ast.ident;
     let mut serialize_fields = Vec::new();
     let mut deserialize_fields = Vec::new();
 
@@ -70,15 +79,15 @@ pub fn derse_derive(input: TokenStream) -> TokenStream {
     serialize_fields.reverse();
 
     let gen = quote! {
-        impl<'a> ::derse::Serialization<'a> for #name {
-            fn serialize_to<T: ::derse::Serializer>(&self, serializer: &mut T) -> ::derse::Result<()> {
+        impl #impl_generics ::derse::Serialization<#lifetime> for #name #ty_generics #where_clause {
+            fn serialize_to<Serializer: ::derse::Serializer>(&self, serializer: &mut Serializer) -> ::derse::Result<()> {
                 let start = serializer.len();
                 #(#serialize_fields)*
                 let len = serializer.len() - start;
                 ::derse::VarInt64(len as u64).serialize_to(serializer)
             }
 
-            fn deserialize_from<S: ::derse::Deserializer<'a>>(buf: &mut S) -> ::derse::Result<Self>
+            fn deserialize_from<Deserializer: ::derse::Deserializer<#lifetime>>(buf: &mut Deserializer) -> ::derse::Result<Self>
             where
                 Self: Sized,
             {
