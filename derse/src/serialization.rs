@@ -110,6 +110,19 @@ impl<'a> Serialization<'a> for Cow<'a, str> {
     }
 }
 
+impl<'a, T: Clone + Serialization<'a>> Serialization<'a> for Cow<'a, T> {
+    fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
+        self.as_ref().serialize_to(serializer)
+    }
+
+    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        Ok(Cow::Owned(T::deserialize_from(buf)?))
+    }
+}
+
 impl<'a> Serialization<'a> for String {
     fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
         self.as_str().serialize_to(serializer)
@@ -300,6 +313,10 @@ mod tests {
             let der = Cow::<str>::deserialize(&bytes[..]).unwrap();
             assert_eq!(ser, &der);
 
+            let der = Cow::<String>::deserialize(&bytes[..]).unwrap();
+            assert_eq!(ser, der.as_ref());
+            let bytes: DownwardBytes = der.serialize().unwrap();
+
             let der: &str = Serialization::deserialize(&bytes[..]).unwrap();
             assert_eq!(ser, der);
 
@@ -427,7 +444,7 @@ mod tests {
         }
 
         {
-            let ser = std::marker::PhantomData::<()>::default();
+            let ser = std::marker::PhantomData::<()>;
             let bytes = ser.serialize::<DownwardBytes>().unwrap();
             assert!(bytes.is_empty());
             let _ = std::marker::PhantomData::<()>::deserialize(&bytes[..]).unwrap();
