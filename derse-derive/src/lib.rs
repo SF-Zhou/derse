@@ -84,6 +84,7 @@ pub fn derse_derive(input: TokenStream) -> TokenStream {
             where
                 Self: Sized,
             {
+                use ::derse::Serialization;
                 let mut buf = &mut b;
                 let len = ::derse::VarInt64::deserialize_from(buf)?.0 as usize;
                 let mut buf = buf.advance(len)?;
