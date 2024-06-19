@@ -79,6 +79,18 @@ pub fn derse_derive(input: TokenStream) -> TokenStream {
     serialize_fields.reverse();
 
     let gen = quote! {
+        impl #impl_generics #name #ty_generics #where_clause {
+            pub fn deserialize_and_split<Deserializer: ::derse::Deserializer<#lifetime>>(mut b: Deserializer) -> ::derse::Result<(Self, Deserializer)>
+            where
+                Self: Sized,
+            {
+                let mut buf = &mut b;
+                let len = ::derse::VarInt64::deserialize_from(buf)?.0 as usize;
+                let mut buf = buf.advance(len)?;
+                Ok((#deserialize_statement, buf))
+            }
+        }
+
         impl #impl_generics ::derse::Serialization<#lifetime> for #name #ty_generics #where_clause {
             fn serialize_to<Serializer: ::derse::Serializer>(&self, serializer: &mut Serializer) -> ::derse::Result<()> {
                 let start = serializer.len();
