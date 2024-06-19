@@ -110,7 +110,7 @@ impl<'a> Serialization<'a> for Cow<'a, str> {
     }
 }
 
-impl<'a, T: Clone + Serialization<'a>> Serialization<'a> for Cow<'a, T> {
+impl<'a, T: ToOwned<Owned = T> + Serialization<'a>> Serialization<'a> for Cow<'a, T> {
     fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
         self.as_ref().serialize_to(serializer)
     }
@@ -252,6 +252,19 @@ impl<'a, T> Serialization<'a> for std::marker::PhantomData<T> {
     }
 }
 
+impl<'a> Serialization<'a> for () {
+    fn serialize_to<S: Serializer>(&self, _: &mut S) -> Result<()> {
+        Ok(())
+    }
+
+    fn deserialize_from<D: Deserializer<'a>>(_: &mut D) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        Ok(())
+    }
+}
+
 macro_rules! tuple_serialization {
     (($($name:ident),+), ($($idx:tt),+)) => {
         impl<'a, $($name),+> Serialization<'a> for ($($name,)+)
@@ -277,6 +290,9 @@ tuple_serialization!((H), (0));
 tuple_serialization!((H, I), (1, 0));
 tuple_serialization!((H, I, J), (2, 1, 0));
 tuple_serialization!((H, I, J, K), (3, 2, 1, 0));
+tuple_serialization!((H, I, J, K, L), (4, 3, 2, 1, 0));
+tuple_serialization!((H, I, J, K, L, M), (5, 4, 3, 2, 1, 0));
+tuple_serialization!((H, I, J, K, L, M, N), (6, 5, 4, 3, 2, 1, 0));
 
 #[cfg(test)]
 mod tests {
@@ -448,6 +464,13 @@ mod tests {
             let bytes = ser.serialize::<DownwardBytes>().unwrap();
             assert!(bytes.is_empty());
             let _ = std::marker::PhantomData::<()>::deserialize(&bytes[..]).unwrap();
+        }
+
+        {
+            let ser = ();
+            let bytes = ser.serialize::<DownwardBytes>().unwrap();
+            assert!(bytes.is_empty());
+            let _ = <()>::deserialize(&bytes[..]).unwrap();
         }
     }
 }
