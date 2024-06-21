@@ -1,6 +1,6 @@
 use std::{borrow::Cow, marker::PhantomData};
 
-use derse::{BytesArray, Derse, DownwardBytes, Serialization};
+use derse::{BytesArray, Derse, Deserialize, DownwardBytes, Serialize};
 
 #[test]
 fn test_named_struct() {
@@ -91,7 +91,7 @@ fn test_struct_with_lifetime() {
 #[test]
 fn test_struct_with_generic() {
     #[derive(Debug, Derse, PartialEq)]
-    struct A<'a, S: Default + Serialization<'a>>(i32, S, PhantomData<&'a ()>);
+    struct A<'a, S: Default + Serialize + Deserialize<'a>>(i32, S, PhantomData<&'a ()>);
 
     {
         let ser = A(233, "hello".to_string(), Default::default());

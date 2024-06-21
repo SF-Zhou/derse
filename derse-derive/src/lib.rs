@@ -40,7 +40,7 @@ pub fn derse_derive(input: TokenStream) -> TokenStream {
                     #field_name: if buf.is_empty() {
                         Default::default()
                     } else {
-                        ::derse::Serialization::deserialize_from(&mut buf)?
+                        ::derse::Deserialize::deserialize_from(&mut buf)?
                     },
                 });
             }
@@ -63,7 +63,7 @@ pub fn derse_derive(input: TokenStream) -> TokenStream {
                     if buf.is_empty() {
                         Default::default()
                     } else {
-                        ::derse::Serialization::deserialize_from(&mut buf)?
+                        ::derse::Deserialize::deserialize_from(&mut buf)?
                     },
                 });
             }
@@ -84,7 +84,7 @@ pub fn derse_derive(input: TokenStream) -> TokenStream {
             where
                 Self: Sized,
             {
-                use ::derse::Serialization;
+                use ::derse::Deserialize;
                 let mut buf = &mut b;
                 let len = ::derse::VarInt64::deserialize_from(buf)?.0 as usize;
                 let mut buf = buf.advance(len)?;
@@ -92,14 +92,16 @@ pub fn derse_derive(input: TokenStream) -> TokenStream {
             }
         }
 
-        impl #impl_generics ::derse::Serialization<#lifetime> for #name #ty_generics #where_clause {
+        impl #impl_generics ::derse::Serialize for #name #ty_generics #where_clause {
             fn serialize_to<Serializer: ::derse::Serializer>(&self, serializer: &mut Serializer) -> ::derse::Result<()> {
                 let start = serializer.len();
                 #(#serialize_fields)*
                 let len = serializer.len() - start;
                 ::derse::VarInt64(len as u64).serialize_to(serializer)
             }
+        }
 
+        impl #impl_generics ::derse::Deserialize<#lifetime> for #name #ty_generics #where_clause {
             fn deserialize_from<Deserializer: ::derse::Deserializer<#lifetime>>(buf: &mut Deserializer) -> ::derse::Result<Self>
             where
                 Self: Sized,
