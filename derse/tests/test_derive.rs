@@ -1,10 +1,10 @@
 use std::{borrow::Cow, marker::PhantomData};
 
-use derse::{BytesArray, Derse, Deserialize, DownwardBytes, Serialize};
+use derse::{BytesArray, Deserialize, DownwardBytes, Serialize};
 
 #[test]
 fn test_named_struct() {
-    #[derive(Debug, Derse, PartialEq)]
+    #[derive(Debug, derse::deserialize, derse::serialize, PartialEq)]
     struct A {
         x: u64,
         y: String,
@@ -25,7 +25,7 @@ fn test_named_struct() {
 
 #[test]
 fn test_unnamed_struct() {
-    #[derive(Debug, Derse, PartialEq)]
+    #[derive(Debug, derse::deserialize, derse::serialize, PartialEq)]
     struct A(u32, u64, String);
 
     let ser = A(u32::MAX, u64::MAX, "hello derse!".to_owned());
@@ -38,10 +38,10 @@ fn test_unnamed_struct() {
 
 #[test]
 fn test_compatibility() {
-    #[derive(Debug, Derse, PartialEq)]
+    #[derive(Debug, derse::deserialize, derse::serialize, PartialEq)]
     struct A1(String, u64);
 
-    #[derive(Debug, Derse, PartialEq)]
+    #[derive(Debug, derse::deserialize, derse::serialize, PartialEq)]
     struct A2(String, u64, String); // add a field.
 
     {
@@ -68,7 +68,7 @@ fn test_compatibility() {
 
 #[test]
 fn test_struct_with_lifetime() {
-    #[derive(Debug, Derse, PartialEq)]
+    #[derive(Debug, derse::deserialize, derse::serialize, PartialEq)]
     struct A<'a>(Cow<'a, str>);
 
     {
@@ -90,7 +90,7 @@ fn test_struct_with_lifetime() {
 
 #[test]
 fn test_struct_with_generic() {
-    #[derive(Debug, Derse, PartialEq)]
+    #[derive(Debug, derse::deserialize, derse::serialize, PartialEq)]
     struct A<'a, S: Default + Serialize + Deserialize<'a>>(i32, S, PhantomData<&'a ()>);
 
     {
@@ -112,12 +112,12 @@ fn test_struct_with_generic() {
 
 #[test]
 fn test_struct_with_remain_buf() {
-    #[derive(Debug, Derse, PartialEq)]
+    #[derive(Debug, derse::deserialize, derse::serialize, PartialEq)]
     struct V1 {
         x: u64,
     }
 
-    #[derive(Debug, Derse, PartialEq)]
+    #[derive(Debug, derse::deserialize, derse::serialize, PartialEq)]
     struct V2 {
         x: u64,
         y: String,
