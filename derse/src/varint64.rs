@@ -1,4 +1,4 @@
-use super::{Error, Result, Serialization};
+use super::{Deserialize, Error, Result, Serialize};
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct VarInt64(pub u64);
@@ -6,7 +6,7 @@ pub struct VarInt64(pub u64);
 const B: u8 = 7;
 const M: u8 = (1 << B) - 1;
 
-impl<'a> Serialization<'a> for VarInt64 {
+impl Serialize for VarInt64 {
     fn serialize_to<S: crate::Serializer>(&self, serializer: &mut S) -> Result<()> {
         let mut v = self.0;
         serializer.prepend([(v as u8) & M])?;
@@ -19,7 +19,9 @@ impl<'a> Serialization<'a> for VarInt64 {
 
         Ok(())
     }
+}
 
+impl<'a> Deserialize<'a> for VarInt64 {
     fn deserialize_from<D: crate::Deserializer<'a>>(buf: &mut D) -> Result<Self>
     where
         Self: Sized,

@@ -1,11 +1,10 @@
-use std::borrow::Cow;
-
 use super::{Deserializer, Error, Result, Serializer, VarInt64};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::hash::Hash;
 
-pub trait Serialization<'a> {
+pub trait Serialize {
     fn serialize<S: Serializer + Default>(&self) -> Result<S> {
         let mut serializer = S::default();
         self.serialize_to(&mut serializer)?;
@@ -13,7 +12,9 @@ pub trait Serialization<'a> {
     }
 
     fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()>;
+}
 
+pub trait Deserialize<'a> {
     fn deserialize<D: Deserializer<'a>>(mut der: D) -> Result<Self>
     where
         Self: Sized,
@@ -28,11 +29,13 @@ pub trait Serialization<'a> {
 
 macro_rules! impl_serialize_trait {
     ($($t:ty),*) => {
-        $(impl<'a> Serialization<'a> for $t {
+        $(impl Serialize for $t {
             fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
                 serializer.prepend(&self.to_le_bytes())
             }
+        }
 
+        impl<'a> Deserialize<'a> for $t {
             fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
             where
                 Self: Sized,
@@ -46,11 +49,13 @@ macro_rules! impl_serialize_trait {
 
 impl_serialize_trait! {i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, f32, f64}
 
-impl<'a> Serialization<'a> for bool {
+impl Serialize for bool {
     fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
         serializer.prepend([*self as u8])
     }
+}
 
+impl<'a> Deserialize<'a> for bool {
     fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
     where
         Self: Sized,
@@ -64,12 +69,20 @@ impl<'a> Serialization<'a> for bool {
     }
 }
 
-impl<'a> Serialization<'a> for &'a str {
+impl Serialize for str {
     fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
         serializer.prepend(self.as_bytes())?;
         VarInt64(self.len() as u64).serialize_to(serializer)
     }
+}
 
+impl Serialize for &str {
+    fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
+        <str>::serialize_to(self, serializer)
+    }
+}
+
+impl<'a> Deserialize<'a> for &'a str {
     fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
     where
         Self: Sized,
@@ -86,12 +99,20 @@ impl<'a> Serialization<'a> for &'a str {
     }
 }
 
-impl<'a> Serialization<'a> for Cow<'a, [u8]> {
+impl Serialize for [u8] {
     fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
         serializer.prepend(self)?;
         VarInt64(self.len() as u64).serialize_to(serializer)
     }
+}
 
+impl<'a> Serialize for Cow<'a, [u8]> {
+    fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
+        <[u8]>::serialize_to(&self, serializer)
+    }
+}
+
+impl<'a> Deserialize<'a> for Cow<'a, [u8]> {
     fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
     where
         Self: Sized,
@@ -101,11 +122,13 @@ impl<'a> Serialization<'a> for Cow<'a, [u8]> {
     }
 }
 
-impl<'a> Serialization<'a> for Cow<'a, str> {
+impl<'a> Serialize for Cow<'a, str> {
     fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
         self.as_ref().serialize_to(serializer)
     }
+}
 
+impl<'a> Deserialize<'a> for Cow<'a, str> {
     fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
     where
         Self: Sized,
@@ -125,11 +148,13 @@ impl<'a> Serialization<'a> for Cow<'a, str> {
     }
 }
 
-impl<'a, T: ToOwned<Owned = T> + Serialization<'a>> Serialization<'a> for Cow<'a, T> {
+impl<'a, T: ToOwned<Owned = T> + Serialize> Serialize for Cow<'a, T> {
     fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
         self.as_ref().serialize_to(serializer)
     }
+}
 
+impl<'a, T: ToOwned<Owned = T> + Deserialize<'a>> Deserialize<'a> for Cow<'a, T> {
     fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
     where
         Self: Sized,
@@ -138,11 +163,13 @@ impl<'a, T: ToOwned<Owned = T> + Serialization<'a>> Serialization<'a> for Cow<'a
     }
 }
 
-impl<'a> Serialization<'a> for String {
+impl Serialize for String {
     fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
         self.as_str().serialize_to(serializer)
     }
+}
 
+impl<'a> Deserialize<'a> for String {
     fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
     where
         Self: Sized,
@@ -151,14 +178,16 @@ impl<'a> Serialization<'a> for String {
     }
 }
 
-impl<'a, Item: Serialization<'a>> Serialization<'a> for Vec<Item> {
+impl<Item: Serialize> Serialize for Vec<Item> {
     fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
         for item in self.iter().rev() {
             item.serialize_to(serializer)?;
         }
         VarInt64(self.len() as u64).serialize_to(serializer)
     }
+}
 
+impl<'a, Item: Deserialize<'a>> Deserialize<'a> for Vec<Item> {
     fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
     where
         Self: Sized,
@@ -172,14 +201,16 @@ impl<'a, Item: Serialization<'a>> Serialization<'a> for Vec<Item> {
     }
 }
 
-impl<'a, Item: Eq + Hash + Serialization<'a>> Serialization<'a> for HashSet<Item> {
+impl<Item: Eq + Hash + Serialize> Serialize for HashSet<Item> {
     fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
         for item in self.iter() {
             item.serialize_to(serializer)?;
         }
         VarInt64(self.len() as u64).serialize_to(serializer)
     }
+}
 
+impl<'a, Item: Eq + Hash + Deserialize<'a>> Deserialize<'a> for HashSet<Item> {
     fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
     where
         Self: Sized,
@@ -193,16 +224,16 @@ impl<'a, Item: Eq + Hash + Serialization<'a>> Serialization<'a> for HashSet<Item
     }
 }
 
-impl<'a, K: Eq + Hash + Serialization<'a>, V: Serialization<'a>> Serialization<'a>
-    for HashMap<K, V>
-{
+impl<K: Eq + Hash + Serialize, V: Serialize> Serialize for HashMap<K, V> {
     fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
         for item in self.iter() {
             item.serialize_to(serializer)?;
         }
         VarInt64(self.len() as u64).serialize_to(serializer)
     }
+}
 
+impl<'a, K: Eq + Hash + Deserialize<'a>, V: Deserialize<'a>> Deserialize<'a> for HashMap<K, V> {
     fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
     where
         Self: Sized,
@@ -218,7 +249,7 @@ impl<'a, K: Eq + Hash + Serialization<'a>, V: Serialization<'a>> Serialization<'
     }
 }
 
-impl<'a, Item: Serialization<'a>> Serialization<'a> for Option<Item> {
+impl<Item: Serialize> Serialize for Option<Item> {
     fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
         if let Some(item) = self {
             item.serialize_to(serializer)?;
@@ -227,7 +258,9 @@ impl<'a, Item: Serialization<'a>> Serialization<'a> for Option<Item> {
             false.serialize_to(serializer)
         }
     }
+}
 
+impl<'a, Item: Deserialize<'a>> Deserialize<'a> for Option<Item> {
     fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
     where
         Self: Sized,
@@ -241,24 +274,19 @@ impl<'a, Item: Serialization<'a>> Serialization<'a> for Option<Item> {
     }
 }
 
-impl<'a, T: Serialization<'a>> Serialization<'a> for &T {
+impl<T: Serialize> Serialize for &T {
     fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
         T::serialize_to(self, serializer)
     }
-
-    fn deserialize_from<D: Deserializer<'a>>(_buf: &mut D) -> Result<Self>
-    where
-        Self: Sized,
-    {
-        Err(Error::InvalidType)
-    }
 }
 
-impl<'a, T> Serialization<'a> for std::marker::PhantomData<T> {
+impl<T> Serialize for std::marker::PhantomData<T> {
     fn serialize_to<S: Serializer>(&self, _: &mut S) -> Result<()> {
         Ok(())
     }
+}
 
+impl<'a, T> Deserialize<'a> for std::marker::PhantomData<T> {
     fn deserialize_from<D: Deserializer<'a>>(_: &mut D) -> Result<Self>
     where
         Self: Sized,
@@ -267,11 +295,13 @@ impl<'a, T> Serialization<'a> for std::marker::PhantomData<T> {
     }
 }
 
-impl<'a> Serialization<'a> for () {
+impl Serialize for () {
     fn serialize_to<S: Serializer>(&self, _: &mut S) -> Result<()> {
         Ok(())
     }
+}
 
+impl<'a> Deserialize<'a> for () {
     fn deserialize_from<D: Deserializer<'a>>(_: &mut D) -> Result<Self>
     where
         Self: Sized,
@@ -282,15 +312,20 @@ impl<'a> Serialization<'a> for () {
 
 macro_rules! tuple_serialization {
     (($($name:ident),+), ($($idx:tt),+)) => {
-        impl<'a, $($name),+> Serialization<'a> for ($($name,)+)
+        impl<'a, $($name),+> Serialize for ($($name,)+)
         where
-            $($name: Serialization<'a>),+
+            $($name: Serialize),+
         {
             fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
                 $((self.$idx.serialize_to(serializer))?;)+
                 Ok(())
             }
+        }
 
+        impl<'a, $($name),+> Deserialize<'a> for ($($name,)+)
+        where
+            $($name: Deserialize<'a>),+
+        {
             fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
             where
                 Self: Sized,
@@ -352,7 +387,7 @@ mod tests {
             assert_eq!(ser, der.as_ref());
             let bytes: DownwardBytes = der.serialize().unwrap();
 
-            let der: &str = Serialization::deserialize(&bytes[..]).unwrap();
+            let der: &str = Deserialize::deserialize(&bytes[..]).unwrap();
             assert_eq!(ser, der);
 
             let bytes2: DownwardBytes = der.serialize().unwrap();
@@ -361,7 +396,7 @@ mod tests {
             assert!(Cow::<str>::deserialize([2, 0xC0, 0xAF].as_slice()).is_err());
             assert!(Cow::<str>::deserialize([128].as_slice()).is_err());
 
-            let result: Result<&str> = Serialization::deserialize([2, 0xC0, 0xAF].as_slice());
+            let result: Result<&str> = Deserialize::deserialize([2, 0xC0, 0xAF].as_slice());
             assert!(result.is_err());
         }
 
@@ -370,11 +405,6 @@ mod tests {
             let bytes: DownwardBytes = ser.serialize().unwrap();
             let der: String = String::deserialize(&bytes[..]).unwrap();
             assert_eq!(ser, der);
-
-            assert!(matches!(
-                <&String>::deserialize(&bytes[..]).unwrap_err(),
-                Error::InvalidType
-            ));
 
             assert!(String::deserialize(&bytes[..1]).is_err());
             assert!(String::deserialize(&bytes[..5]).is_err());
@@ -447,10 +477,10 @@ mod tests {
             let ser = (String::from("hello"), 64u32);
             let bytes: DownwardBytes = ser.serialize().unwrap();
             assert_eq!(bytes.len(), 1 + 5 + 4);
-            let der: (String, u32) = Serialization::deserialize(&bytes[..]).unwrap();
+            let der: (String, u32) = Deserialize::deserialize(&bytes[..]).unwrap();
             assert_eq!(ser, der);
 
-            let der: (String, u16, u16) = Serialization::deserialize(&bytes[..]).unwrap();
+            let der: (String, u16, u16) = Deserialize::deserialize(&bytes[..]).unwrap();
             assert_eq!(ser.0, der.0);
             assert_eq!(ser.1, der.1 as _);
             assert_eq!(0, der.2);
@@ -468,7 +498,7 @@ mod tests {
             let der = Cow::<str>::deserialize(BytesArray::new(&c)).unwrap();
             assert_eq!(msg, der);
 
-            let result: Result<&str> = Serialization::deserialize(BytesArray::new(&c));
+            let result: Result<&str> = Deserialize::deserialize(BytesArray::new(&c));
             assert!(result.is_err());
 
             assert!(String::deserialize(BytesArray::new(&c[1..])).is_err());

@@ -10,7 +10,7 @@ pub use bytes_array::BytesArray;
 pub use deserializer::Deserializer;
 pub use downward_bytes::DownwardBytes;
 pub use error::{Error, Result};
-pub use serialization::Serialization;
+pub use serialization::{Deserialize, Serialize};
 pub use serializer::Serializer;
 pub use varint64::VarInt64;
 
