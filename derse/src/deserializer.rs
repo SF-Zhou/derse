@@ -40,8 +40,8 @@ impl<'a> Deserializer<'a> for &'a [u8] {
             Ok(Cow::Borrowed(front))
         } else {
             Err(Error::DataIsShort {
-                expect: 1,
-                actual: 0,
+                expect: len,
+                actual: self.len(),
             })
         }
     }

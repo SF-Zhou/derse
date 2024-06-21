@@ -79,9 +79,9 @@ impl<'a> Serialization<'a> for &'a str {
         match front {
             Cow::Borrowed(borrowed) => match std::str::from_utf8(borrowed) {
                 Ok(str) => Ok(str),
-                Err(_) => Err(Error::InvalidString),
+                Err(_) => Err(Error::InvalidString(Vec::from(borrowed))),
             },
-            Cow::Owned(_) => Err(Error::InvalidString),
+            Cow::Owned(_) => Err(Error::InvalidString(Default::default())),
         }
     }
 }
@@ -115,11 +115,11 @@ impl<'a> Serialization<'a> for Cow<'a, str> {
         match front {
             Cow::Borrowed(borrowed) => match std::str::from_utf8(borrowed) {
                 Ok(str) => Ok(Cow::Borrowed(str)),
-                Err(_) => Err(Error::InvalidString),
+                Err(_) => Err(Error::InvalidString(Vec::from(borrowed))),
             },
             Cow::Owned(owned) => match std::str::from_utf8(&owned) {
                 Ok(_) => Ok(Cow::Owned(unsafe { String::from_utf8_unchecked(owned) })),
-                Err(_) => Err(Error::InvalidString),
+                Err(_) => Err(Error::InvalidString(owned)),
             },
         }
     }
@@ -332,7 +332,7 @@ mod tests {
         assert!(bool::deserialize(&[][..]).is_err());
         assert_eq!(
             bool::deserialize(&[][..]).unwrap_err().to_string(),
-            "DataIsShort { expect: 1, actual: 0 }".to_owned()
+            "data is short for deserialize: expect 1, actual 0".to_owned()
         );
 
         {
