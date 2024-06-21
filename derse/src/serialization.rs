@@ -108,7 +108,7 @@ impl Serialize for [u8] {
 
 impl<'a> Serialize for Cow<'a, [u8]> {
     fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
-        <[u8]>::serialize_to(&self, serializer)
+        <[u8]>::serialize_to(self, serializer)
     }
 }
 

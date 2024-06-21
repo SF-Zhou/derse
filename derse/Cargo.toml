@@ -1,6 +1,6 @@
 [package]
 name = "derse"
-version = "0.1.19"
+version = "0.1.20"
 authors.workspace = true
 edition.workspace = true
 homepage.workspace = true
@@ -9,5 +9,5 @@ description.workspace = true
 license.workspace = true
 
 [dependencies]
-derse-derive = { version = ">=0.1.9", path = "../derse-derive" }
+derse-derive = { version = ">=0.1.10", path = "../derse-derive" }
 thiserror = "1"

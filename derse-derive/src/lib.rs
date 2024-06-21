@@ -4,8 +4,54 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, Data, DataStruct, DeriveInput, Fields, Lifetime, LifetimeParam};
 
-#[proc_macro_derive(Derse)]
-pub fn derse_derive(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(serialize)]
+pub fn derse_serialize_derive(input: TokenStream) -> TokenStream {
+    let ast = parse_macro_input!(input as DeriveInput);
+    let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
+
+    let name = &ast.ident;
+    let mut serialize_fields = Vec::new();
+    match ast.data {
+        Data::Struct(DataStruct {
+            fields: Fields::Named(fields),
+            ..
+        }) => {
+            for f in fields.named {
+                let field_name = &f.ident;
+                serialize_fields.push(quote! {
+                    self.#field_name.serialize_to(serializer)?;
+                });
+            }
+        }
+        Data::Struct(DataStruct {
+            fields: Fields::Unnamed(fields),
+            ..
+        }) => {
+            for (i, _) in fields.unnamed.iter().enumerate() {
+                let index = syn::Index::from(i);
+                serialize_fields.push(quote! {
+                    self.#index.serialize_to(serializer)?;
+                });
+            }
+        }
+        _ => panic!("only struct is supported"),
+    };
+    serialize_fields.reverse();
+
+    quote! {
+        impl #impl_generics ::derse::Serialize for #name #ty_generics #where_clause {
+            fn serialize_to<Serializer: ::derse::Serializer>(&self, serializer: &mut Serializer) -> ::derse::Result<()> {
+                let start = serializer.len();
+                #(#serialize_fields)*
+                let len = serializer.len() - start;
+                ::derse::VarInt64(len as u64).serialize_to(serializer)
+            }
+        }
+    }.into()
+}
+
+#[proc_macro_derive(deserialize)]
+pub fn derse_deserialize_derive(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
 
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
@@ -23,9 +69,7 @@ pub fn derse_derive(input: TokenStream) -> TokenStream {
     };
 
     let name = &ast.ident;
-    let mut serialize_fields = Vec::new();
     let mut deserialize_fields = Vec::new();
-
     let deserialize_statement = match ast.data {
         Data::Struct(DataStruct {
             fields: Fields::Named(fields),
@@ -33,9 +77,6 @@ pub fn derse_derive(input: TokenStream) -> TokenStream {
         }) => {
             for f in fields.named {
                 let field_name = &f.ident;
-                serialize_fields.push(quote! {
-                    self.#field_name.serialize_to(serializer)?;
-                });
                 deserialize_fields.push(quote! {
                     #field_name: if buf.is_empty() {
                         Default::default()
@@ -54,11 +95,7 @@ pub fn derse_derive(input: TokenStream) -> TokenStream {
             fields: Fields::Unnamed(fields),
             ..
         }) => {
-            for (i, _) in fields.unnamed.iter().enumerate() {
-                let index = syn::Index::from(i);
-                serialize_fields.push(quote! {
-                    self.#index.serialize_to(serializer)?;
-                });
+            for _ in fields.unnamed {
                 deserialize_fields.push(quote! {
                     if buf.is_empty() {
                         Default::default()
@@ -76,9 +113,7 @@ pub fn derse_derive(input: TokenStream) -> TokenStream {
         _ => panic!("only struct is supported"),
     };
 
-    serialize_fields.reverse();
-
-    let gen = quote! {
+    quote! {
         impl #impl_generics #name #ty_generics #where_clause {
             pub fn deserialize_and_split<Deserializer: ::derse::Deserializer<#lifetime>>(mut b: Deserializer) -> ::derse::Result<(Self, Deserializer)>
             where
@@ -92,15 +127,6 @@ pub fn derse_derive(input: TokenStream) -> TokenStream {
             }
         }
 
-        impl #impl_generics ::derse::Serialize for #name #ty_generics #where_clause {
-            fn serialize_to<Serializer: ::derse::Serializer>(&self, serializer: &mut Serializer) -> ::derse::Result<()> {
-                let start = serializer.len();
-                #(#serialize_fields)*
-                let len = serializer.len() - start;
-                ::derse::VarInt64(len as u64).serialize_to(serializer)
-            }
-        }
-
         impl #impl_generics ::derse::Deserialize<#lifetime> for #name #ty_generics #where_clause {
             fn deserialize_from<Deserializer: ::derse::Deserializer<#lifetime>>(buf: &mut Deserializer) -> ::derse::Result<Self>
             where
@@ -111,7 +137,5 @@ pub fn derse_derive(input: TokenStream) -> TokenStream {
                 Ok(#deserialize_statement)
             }
         }
-    };
-
-    gen.into()
+    }.into()
 }
