@@ -1,6 +1,6 @@
 [package]
 name = "derse-derive"
-version = "0.1.11"
+version = "0.1.12"
 authors.workspace = true
 edition.workspace = true
 homepage.workspace = true
