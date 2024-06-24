@@ -2,6 +2,8 @@ use crate as derse;
 
 #[derive(thiserror::Error, derse::serialize, derse::deserialize, PartialEq)]
 pub enum Error {
+    #[error("default")]
+    Default,
     #[error("data is short for deserialize: expect {expect}, actual {actual}")]
     DataIsShort { expect: usize, actual: usize },
     #[error("invalid bool: {0}")]
@@ -12,6 +14,12 @@ pub enum Error {
     VarintIsShort,
     #[error("invalid type: {0}")]
     InvalidType(String),
+}
+
+impl Default for Error {
+    fn default() -> Self {
+        Self::Default
+    }
 }
 
 impl std::fmt::Debug for Error {
@@ -40,5 +48,7 @@ mod tests {
 
         let der = Error::deserialize(&bytes[..]).unwrap();
         assert_eq!(ser, der);
+
+        let _ = Error::default().serialize::<DownwardBytes>().unwrap();
     }
 }
