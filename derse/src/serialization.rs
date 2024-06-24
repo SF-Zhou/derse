@@ -69,6 +69,21 @@ impl<'a> Deserialize<'a> for bool {
     }
 }
 
+impl Serialize for usize {
+    fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
+        (*self as u64).serialize_to(serializer)
+    }
+}
+
+impl<'a> Deserialize<'a> for usize {
+    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        u64::deserialize_from(buf).map(|v| v as usize)
+    }
+}
+
 impl Serialize for str {
     fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
         serializer.prepend(self.as_bytes())?;
@@ -274,6 +289,35 @@ impl<'a, Item: Deserialize<'a>> Deserialize<'a> for Option<Item> {
     }
 }
 
+impl<T: Serialize, E: Serialize> Serialize for std::result::Result<T, E> {
+    fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
+        match self {
+            Ok(t) => {
+                t.serialize_to(serializer)?;
+                true.serialize_to(serializer)
+            }
+            Err(e) => {
+                e.serialize_to(serializer)?;
+                false.serialize_to(serializer)
+            }
+        }
+    }
+}
+
+impl<'a, T: Deserialize<'a>, E: Deserialize<'a>> Deserialize<'a> for std::result::Result<T, E> {
+    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        let has = bool::deserialize_from(buf)?;
+        if has {
+            Ok(Ok(T::deserialize_from(buf)?))
+        } else {
+            Ok(Err(E::deserialize_from(buf)?))
+        }
+    }
+}
+
 impl<T: Serialize> Serialize for &T {
     fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
         T::serialize_to(self, serializer)
@@ -454,6 +498,20 @@ mod tests {
             assert!(Option::<String>::deserialize([0].as_ref())
                 .unwrap()
                 .is_none());
+        }
+
+        {
+            let ser = Result::Ok(233i32);
+            let bytes = ser.serialize::<DownwardBytes>().unwrap();
+            assert_eq!(bytes.len(), 1 + 4);
+            let der = Result::deserialize(&bytes[..]).unwrap();
+            assert_eq!(ser, der);
+
+            let ser = Result::<()>::Err(Error::VarintIsShort);
+            let bytes = ser.serialize::<DownwardBytes>().unwrap();
+            assert_eq!(bytes.len(), 1 + 1 + 1 + 13);
+            let der = Result::deserialize(&bytes[..]).unwrap();
+            assert_eq!(ser, der);
         }
 
         {
