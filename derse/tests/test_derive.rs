@@ -37,6 +37,19 @@ fn test_unnamed_struct() {
 }
 
 #[test]
+fn test_unit_struct() {
+    #[derive(Debug, derse::deserialize, derse::serialize, PartialEq)]
+    struct A;
+
+    let ser = A;
+    let bytes = ser.serialize::<DownwardBytes>().unwrap();
+    assert_eq!(bytes.len(), 1);
+
+    let der = A::deserialize(&bytes[..]).unwrap();
+    assert_eq!(ser, der);
+}
+
+#[test]
 fn test_compatibility() {
     #[derive(Debug, derse::deserialize, derse::serialize, PartialEq)]
     struct A1(String, u64);
@@ -133,4 +146,48 @@ fn test_struct_with_remain_buf() {
     assert_eq!(der.x, ser.x);
     let der = String::deserialize(remain).unwrap();
     assert_eq!(der, ser.y);
+}
+
+#[test]
+fn test_enum() {
+    #[derive(Debug, derse::serialize, derse::deserialize, PartialEq)]
+    enum Demo {
+        A,
+        B(i32),
+        C { x: i32, y: String },
+    }
+
+    let ser = Demo::A;
+    let bytes = ser.serialize::<DownwardBytes>().unwrap();
+    let ty = <&str>::deserialize(&bytes[1..]).unwrap();
+    assert_eq!(ty, "A");
+    let der = Demo::deserialize(&bytes[..]).unwrap();
+    assert_eq!(ser, der);
+
+    let ser = Demo::B(233);
+    let bytes = ser.serialize::<DownwardBytes>().unwrap();
+    let ty = <&str>::deserialize(&bytes[1..]).unwrap();
+    assert_eq!(ty, "B");
+    let value = i32::deserialize(&bytes[3..]).unwrap();
+    assert_eq!(value, 233);
+    let der = Demo::deserialize(&bytes[..]).unwrap();
+    assert_eq!(ser, der);
+
+    let ser = Demo::C {
+        x: 233,
+        y: "hello".into(),
+    };
+    let bytes = ser.serialize::<DownwardBytes>().unwrap();
+    let ty = <&str>::deserialize(&bytes[1..]).unwrap();
+    assert_eq!(ty, "C");
+    let value = i32::deserialize(&bytes[3..]).unwrap();
+    assert_eq!(value, 233);
+    let str = <&str>::deserialize(&bytes[7..]).unwrap();
+    assert_eq!(str, "hello");
+    let der = Demo::deserialize(&bytes[..]).unwrap();
+    assert_eq!(ser, der);
+
+    let mut bytes = "D".serialize::<DownwardBytes>().unwrap();
+    2u8.serialize_to(&mut bytes).unwrap();
+    println!("{}", Demo::deserialize(&bytes[..]).unwrap_err());
 }

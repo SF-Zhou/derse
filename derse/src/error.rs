@@ -2,14 +2,14 @@
 pub enum Error {
     #[error("data is short for deserialize: expect {expect}, actual {actual}")]
     DataIsShort { expect: usize, actual: usize },
-    #[error("invalid bool {0}")]
+    #[error("invalid bool: {0}")]
     InvalidBool(u8),
-    #[error("invalid string {0:?}")]
+    #[error("invalid string: {0:?}")]
     InvalidString(Vec<u8>),
     #[error("varint is short")]
     VarintIsShort,
-    #[error("invalid type")]
-    InvalidType,
+    #[error("invalid type: {0}")]
+    InvalidType(String),
 }
 
 impl std::fmt::Debug for Error {
