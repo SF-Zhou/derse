@@ -1,6 +1,6 @@
 [package]
 name = "derse"
-version = "0.1.23"
+version = "0.1.25"
 authors.workspace = true
 edition.workspace = true
 homepage.workspace = true

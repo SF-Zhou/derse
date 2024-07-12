@@ -307,53 +307,9 @@ impl<'a, Item: Deserialize<'a>> Deserialize<'a> for Option<Item> {
     }
 }
 
-impl<T: Serialize, E: Serialize> Serialize for std::result::Result<T, E> {
-    fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
-        match self {
-            Ok(t) => {
-                t.serialize_to(serializer)?;
-                true.serialize_to(serializer)
-            }
-            Err(e) => {
-                e.serialize_to(serializer)?;
-                false.serialize_to(serializer)
-            }
-        }
-    }
-}
-
-impl<'a, T: Deserialize<'a>, E: Deserialize<'a>> Deserialize<'a> for std::result::Result<T, E> {
-    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
-    where
-        Self: Sized,
-    {
-        let has = bool::deserialize_from(buf)?;
-        if has {
-            Ok(Ok(T::deserialize_from(buf)?))
-        } else {
-            Ok(Err(E::deserialize_from(buf)?))
-        }
-    }
-}
-
 impl<T: Serialize> Serialize for &T {
     fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
         T::serialize_to(self, serializer)
-    }
-}
-
-impl<T> Serialize for std::marker::PhantomData<T> {
-    fn serialize_to<S: Serializer>(&self, _: &mut S) -> Result<()> {
-        Ok(())
-    }
-}
-
-impl<'a, T> Deserialize<'a> for std::marker::PhantomData<T> {
-    fn deserialize_from<D: Deserializer<'a>>(_: &mut D) -> Result<Self>
-    where
-        Self: Sized,
-    {
-        Ok(Default::default())
     }
 }
 
@@ -519,20 +475,6 @@ mod tests {
         }
 
         {
-            let ser = Result::Ok(233i32);
-            let bytes = ser.serialize::<DownwardBytes>().unwrap();
-            assert_eq!(bytes.len(), 1 + 4);
-            let der = Result::deserialize(&bytes[..]).unwrap();
-            assert_eq!(ser, der);
-
-            let ser = Result::<()>::Err(Error::VarintIsShort);
-            let bytes = ser.serialize::<DownwardBytes>().unwrap();
-            assert_eq!(bytes.len(), 1 + 1 + 1 + 13);
-            let der = Result::deserialize(&bytes[..]).unwrap();
-            assert_eq!(ser, der);
-        }
-
-        {
             assert!(u32::deserialize([0, 1, 2].as_ref()).is_err());
         }
 
@@ -582,13 +524,6 @@ mod tests {
             let a = [0x2, 0xC0];
             let b = [0xAF];
             assert!(Cow::<str>::deserialize(BytesArray::new(&[&a[..], &b[..]])).is_err());
-        }
-
-        {
-            let ser = std::marker::PhantomData::<()>;
-            let bytes = ser.serialize::<DownwardBytes>().unwrap();
-            assert!(bytes.is_empty());
-            let _ = std::marker::PhantomData::<()>::deserialize(&bytes[..]).unwrap();
         }
 
         {
