@@ -121,6 +121,24 @@ impl Serialize for [u8] {
     }
 }
 
+impl<const N: usize> Serialize for [u8; N] {
+    fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
+        serializer.prepend(self)
+    }
+}
+
+impl<'a, const N: usize> Deserialize<'a> for [u8; N] {
+    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        let front = buf.pop(N)?;
+        let mut ret = [0u8; N];
+        ret.copy_from_slice(&front);
+        Ok(ret)
+    }
+}
+
 impl<'a> Serialize for Cow<'a, [u8]> {
     fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
         <[u8]>::serialize_to(self, serializer)
@@ -578,6 +596,14 @@ mod tests {
             let bytes = ser.serialize::<DownwardBytes>().unwrap();
             assert!(bytes.is_empty());
             <()>::deserialize(&bytes[..]).unwrap();
+        }
+
+        {
+            let ser = 233u32;
+            let bytes = ser.serialize::<DownwardBytes>().unwrap();
+            let array = <[u8; 4]>::deserialize(&bytes[..]).unwrap();
+            let der = u32::from_le_bytes(array);
+            assert_eq!(ser, der);
         }
     }
 }
