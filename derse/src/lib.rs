@@ -11,7 +11,7 @@ pub use bytes_array::BytesArray;
 pub use deserializer::Deserializer;
 pub use downward_bytes::DownwardBytes;
 pub use error::{Error, Result};
-pub use serialization::{Deserialize, Serialize};
+pub use serialization::{Deserialize, DetailedDeserialize, Serialize};
 pub use serializer::Serializer;
 pub use varint64::VarInt64;
 

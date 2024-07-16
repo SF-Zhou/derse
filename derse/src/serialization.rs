@@ -27,6 +27,14 @@ pub trait Deserialize<'a> {
         Self: Sized;
 }
 
+pub trait DetailedDeserialize<'a> {
+    fn deserialize_len<D: Deserializer<'a>>(buf: &mut D) -> Result<usize>;
+
+    fn deserialize_fields<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
+    where
+        Self: Sized;
+}
+
 macro_rules! impl_serialize_trait {
     ($($t:ty),*) => {
         $(impl Serialize for $t {

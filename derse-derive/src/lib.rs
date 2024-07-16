@@ -1,5 +1,3 @@
-extern crate proc_macro;
-
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{
@@ -120,7 +118,7 @@ pub fn derse_deserialize_derive(input: TokenStream) -> TokenStream {
                         if buf.is_empty() {
                             Default::default()
                         } else {
-                            derse::Deserialize::deserialize_from(&mut buf)?
+                            derse::Deserialize::deserialize_from(buf)?
                         }
                     };
                     f.ident
@@ -147,7 +145,7 @@ pub fn derse_deserialize_derive(input: TokenStream) -> TokenStream {
                             if buf.is_empty() {
                                 Default::default()
                             } else {
-                                derse::Deserialize::deserialize_from(&mut buf)?
+                                derse::Deserialize::deserialize_from(buf)?
                             }
                         };
                         f.ident
@@ -167,7 +165,7 @@ pub fn derse_deserialize_derive(input: TokenStream) -> TokenStream {
                 match_statements.push(match_statement);
             }
             quote! {
-                let ty = <&str>::deserialize_from(&mut buf)?;
+                let ty = <&str>::deserialize_from(buf)?;
                 let result = match ty {
                     #(#match_statements)*
                     _ => return Err(derse::Error::InvalidType(format!("{}::{}", #struct_name, ty))),
@@ -178,17 +176,19 @@ pub fn derse_deserialize_derive(input: TokenStream) -> TokenStream {
     };
 
     quote! {
-        impl #impl_generics #struct_type #ty_generics #where_clause {
-            pub fn deserialize_and_split<Deserializer: derse::Deserializer<#lifetime>>(mut b: Deserializer) -> derse::Result<(Self, Deserializer)>
+        impl #impl_generics derse::DetailedDeserialize<#lifetime> for #struct_type #ty_generics #where_clause {
+            fn deserialize_len<Deserializer: derse::Deserializer<#lifetime>>(buf: &mut Deserializer) -> derse::Result<usize> {
+                use derse::Deserialize;
+                Ok(derse::VarInt64::deserialize_from(buf)?.0 as usize)
+            }
+
+            fn deserialize_fields<Deserializer: derse::Deserializer<#lifetime>>(buf: &mut Deserializer) -> derse::Result<Self>
             where
                 Self: Sized,
             {
                 use derse::Deserialize;
-                let mut buf = &mut b;
-                let len = derse::VarInt64::deserialize_from(buf)?.0 as usize;
-                let mut buf = buf.advance(len)?;
                 #deserialize_statements
-                Ok((result, buf))
+                Ok(result)
             }
         }
 
@@ -197,10 +197,10 @@ pub fn derse_deserialize_derive(input: TokenStream) -> TokenStream {
             where
                 Self: Sized,
             {
-                let len = derse::VarInt64::deserialize_from(buf)?.0 as usize;
+                use derse::DetailedDeserialize;
+                let len = Self::deserialize_len(buf)?;
                 let mut buf = buf.advance(len)?;
-                #deserialize_statements
-                Ok(result)
+                Self::deserialize_fields(&mut buf)
             }
         }
     }.into()

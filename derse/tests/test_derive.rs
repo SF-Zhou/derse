@@ -1,6 +1,6 @@
 use std::{borrow::Cow, marker::PhantomData};
 
-use derse::{BytesArray, Deserialize, DownwardBytes, Serialize};
+use derse::{BytesArray, Deserialize, Deserializer, DetailedDeserialize, DownwardBytes, Serialize};
 
 #[test]
 fn test_named_struct() {
@@ -141,10 +141,13 @@ fn test_struct_with_remain_buf() {
         y: String::from("hello"),
     };
     let bytes = ser.serialize::<DownwardBytes>().unwrap();
-    let buf = &bytes[..];
-    let (der, remain) = V1::deserialize_and_split(buf).unwrap();
+    let mut buf = &bytes[..];
+
+    let len = V1::deserialize_len(&mut buf).unwrap();
+    let mut buf = buf.advance(len).unwrap();
+    let der = V1::deserialize_fields(&mut buf).unwrap();
     assert_eq!(der.x, ser.x);
-    let der = String::deserialize(remain).unwrap();
+    let der = String::deserialize(buf).unwrap();
     assert_eq!(der, ser.y);
 }
 
