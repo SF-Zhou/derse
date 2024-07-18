@@ -1,10 +1,17 @@
+//! This crate provides procedural macros for automatically deriving serialization and deserialization implementations for custom types.
+//! It leverages the `derse` crate for serialization and deserialization functionalities.
+
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{
     parse_macro_input, Data, DataEnum, DataStruct, DeriveInput, Fields, Lifetime, LifetimeParam,
 };
 
-#[proc_macro_derive(serialize)]
+/// Derives the `Serialize` trait for structs and enums.
+///
+/// This macro generates an implementation of the `Serialize` trait for the given type.
+/// It supports both structs and enums, handling named, unnamed, and unit fields.
+#[proc_macro_derive(Serialize)]
 pub fn derse_serialize_derive(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
@@ -89,7 +96,11 @@ pub fn derse_serialize_derive(input: TokenStream) -> TokenStream {
     }.into()
 }
 
-#[proc_macro_derive(deserialize)]
+/// Derives the `Deserialize` trait for structs and enums.
+///
+/// This macro generates an implementation of the `Deserialize` trait for the given type.
+/// It supports both structs and enums, handling named, unnamed, and unit fields.
+#[proc_macro_derive(Deserialize)]
 pub fn derse_deserialize_derive(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
 

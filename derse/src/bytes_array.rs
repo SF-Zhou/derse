@@ -1,6 +1,7 @@
 use super::{Deserializer, Error, Result};
 use std::borrow::Cow;
 
+/// A struct representing an array of byte slices.
 #[derive(Clone, Copy)]
 pub struct BytesArray<'a> {
     arr: &'a [&'a [u8]],
@@ -9,25 +10,42 @@ pub struct BytesArray<'a> {
 }
 
 impl<'a> BytesArray<'a> {
+    /// Creates a new `BytesArray` from a slice of byte slices.
+    ///
+    /// # Arguments
+    ///
+    /// * `arr` - A slice of byte slices.
     pub fn new(arr: &'a [&[u8]]) -> Self {
         let len = arr.iter().map(|s| s.len()).sum();
         Self { arr, pos: 0, len }
     }
 
+    /// Returns the total length of the byte slices.
     pub fn len(&self) -> usize {
         self.len
     }
 
+    /// Checks if the `BytesArray` is empty.
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
 }
 
 impl<'a> Deserializer<'a> for BytesArray<'a> {
+    /// Checks if the `BytesArray` is empty.
     fn is_empty(&self) -> bool {
         self.len == 0
     }
 
+    /// Advances the `BytesArray` by the specified length.
+    ///
+    /// # Arguments
+    ///
+    /// * `len` - The length to advance.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing the advanced `BytesArray` or an error.
     fn advance(&mut self, len: usize) -> Result<Self>
     where
         Self: Sized,
@@ -68,6 +86,15 @@ impl<'a> Deserializer<'a> for BytesArray<'a> {
         })
     }
 
+    /// Pops the specified length of data from the `BytesArray`.
+    ///
+    /// # Arguments
+    ///
+    /// * `len` - The length of data to pop.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing the popped data or an error.
     fn pop(&mut self, len: usize) -> Result<Cow<'a, [u8]>> {
         if len <= self.len {
             let first_slice_len = self.arr[0].len() - self.pos;
