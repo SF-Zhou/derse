@@ -15,4 +15,4 @@ pub use serialization::{Deserialize, DetailedDeserialize, Serialize};
 pub use serializer::Serializer;
 pub use varint64::VarInt64;
 
-pub use derse_derive::{deserialize, serialize};
+pub use derse_derive::{Deserialize, Serialize};

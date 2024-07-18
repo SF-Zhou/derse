@@ -4,7 +4,7 @@ use derse::{BytesArray, Deserialize, Deserializer, DetailedDeserialize, Downward
 
 #[test]
 fn test_named_struct() {
-    #[derive(Debug, derse::deserialize, derse::serialize, PartialEq)]
+    #[derive(Debug, Deserialize, Serialize, PartialEq)]
     struct A {
         x: u64,
         y: String,
@@ -25,7 +25,7 @@ fn test_named_struct() {
 
 #[test]
 fn test_unnamed_struct() {
-    #[derive(Debug, derse::deserialize, derse::serialize, PartialEq)]
+    #[derive(Debug, Deserialize, Serialize, PartialEq)]
     struct A(u32, u64, String);
 
     let ser = A(u32::MAX, u64::MAX, "hello derse!".to_owned());
@@ -38,7 +38,7 @@ fn test_unnamed_struct() {
 
 #[test]
 fn test_unit_struct() {
-    #[derive(Debug, derse::deserialize, derse::serialize, PartialEq)]
+    #[derive(Debug, Deserialize, Serialize, PartialEq)]
     struct A;
 
     let ser = A;
@@ -51,10 +51,10 @@ fn test_unit_struct() {
 
 #[test]
 fn test_compatibility() {
-    #[derive(Debug, derse::deserialize, derse::serialize, PartialEq)]
+    #[derive(Debug, Deserialize, Serialize, PartialEq)]
     struct A1(String, u64);
 
-    #[derive(Debug, derse::deserialize, derse::serialize, PartialEq)]
+    #[derive(Debug, Deserialize, Serialize, PartialEq)]
     struct A2(String, u64, String); // add a field.
 
     {
@@ -81,7 +81,7 @@ fn test_compatibility() {
 
 #[test]
 fn test_struct_with_lifetime() {
-    #[derive(Debug, derse::deserialize, derse::serialize, PartialEq)]
+    #[derive(Debug, Deserialize, Serialize, PartialEq)]
     struct A<'a>(Cow<'a, str>);
 
     {
@@ -103,7 +103,7 @@ fn test_struct_with_lifetime() {
 
 #[test]
 fn test_struct_with_generic() {
-    #[derive(Debug, derse::deserialize, derse::serialize, PartialEq)]
+    #[derive(Debug, Deserialize, Serialize, PartialEq)]
     struct A<'a, S: Default + Serialize + Deserialize<'a>>(i32, S, PhantomData<&'a ()>);
 
     {
@@ -125,12 +125,12 @@ fn test_struct_with_generic() {
 
 #[test]
 fn test_struct_with_remain_buf() {
-    #[derive(Debug, derse::deserialize, derse::serialize, PartialEq)]
+    #[derive(Debug, Deserialize, Serialize, PartialEq)]
     struct V1 {
         x: u64,
     }
 
-    #[derive(Debug, derse::deserialize, derse::serialize, PartialEq)]
+    #[derive(Debug, Deserialize, Serialize, PartialEq)]
     struct V2 {
         x: u64,
         y: String,
@@ -153,7 +153,7 @@ fn test_struct_with_remain_buf() {
 
 #[test]
 fn test_enum() {
-    #[derive(Debug, derse::serialize, derse::deserialize, PartialEq)]
+    #[derive(Debug, Serialize, Deserialize, PartialEq)]
     enum Demo {
         A,
         B(i32),

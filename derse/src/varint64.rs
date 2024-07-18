@@ -1,5 +1,6 @@
 use super::{Deserialize, Error, Result, Serialize};
 
+/// A struct representing a variable-length 64-bit integer.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct VarInt64(pub u64);
 
@@ -7,6 +8,15 @@ const B: u8 = 7;
 const M: u8 = (1 << B) - 1;
 
 impl Serialize for VarInt64 {
+    /// Serializes the `VarInt64` into the given `Serializer`.
+    ///
+    /// # Arguments
+    ///
+    /// * `serializer` - The `Serializer` to serialize the data into.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` indicating success or failure.
     fn serialize_to<S: crate::Serializer>(&self, serializer: &mut S) -> Result<()> {
         let mut v = self.0;
         serializer.prepend([(v as u8) & M])?;
@@ -22,6 +32,15 @@ impl Serialize for VarInt64 {
 }
 
 impl<'a> Deserialize<'a> for VarInt64 {
+    /// Deserializes the `VarInt64` from the given `Deserializer`.
+    ///
+    /// # Arguments
+    ///
+    /// * `buf` - The `Deserializer` to deserialize the data from.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing the deserialized `VarInt64` or an error.
     fn deserialize_from<D: crate::Deserializer<'a>>(buf: &mut D) -> Result<Self>
     where
         Self: Sized,

@@ -1,6 +1,6 @@
 use crate as derse;
 
-#[derive(thiserror::Error, derse::serialize, derse::deserialize, PartialEq)]
+#[derive(thiserror::Error, derse::Serialize, derse::Deserialize, PartialEq)]
 pub enum Error {
     #[error("default")]
     Default,
