@@ -14,6 +14,7 @@ use syn::{
 #[proc_macro_derive(Serialize)]
 pub fn derse_serialize_derive(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
+    let krate = get_crate_name();
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
 
     let struct_type = &ast.ident;
@@ -85,12 +86,12 @@ pub fn derse_serialize_derive(input: TokenStream) -> TokenStream {
     };
 
     quote! {
-        impl #impl_generics derse::Serialize for #struct_type #ty_generics #where_clause {
-            fn serialize_to<Serializer: derse::Serializer>(&self, serializer: &mut Serializer) -> derse::Result<()> {
+        impl #impl_generics #krate::Serialize for #struct_type #ty_generics #where_clause {
+            fn serialize_to<Serializer: #krate::Serializer>(&self, serializer: &mut Serializer) -> #krate::Result<()> {
                 let start = serializer.len();
                 #statements
                 let len = serializer.len() - start;
-                derse::VarInt64(len as u64).serialize_to(serializer)
+                #krate::VarInt64(len as u64).serialize_to(serializer)
             }
         }
     }.into()
@@ -103,6 +104,7 @@ pub fn derse_serialize_derive(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(Deserialize)]
 pub fn derse_deserialize_derive(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
+    let krate = get_crate_name();
 
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
     let mut generics = ast.generics.clone();
@@ -187,32 +189,47 @@ pub fn derse_deserialize_derive(input: TokenStream) -> TokenStream {
     };
 
     quote! {
-        impl #impl_generics derse::DetailedDeserialize<#lifetime> for #struct_type #ty_generics #where_clause {
-            fn deserialize_len<Deserializer: derse::Deserializer<#lifetime>>(buf: &mut Deserializer) -> derse::Result<usize> {
-                use derse::Deserialize;
-                Ok(derse::VarInt64::deserialize_from(buf)?.0 as usize)
+        impl #impl_generics #krate::DetailedDeserialize<#lifetime> for #struct_type #ty_generics #where_clause {
+            fn deserialize_len<Deserializer: #krate::Deserializer<#lifetime>>(buf: &mut Deserializer) -> #krate::Result<usize> {
+                use #krate::Deserialize;
+                Ok(#krate::VarInt64::deserialize_from(buf)?.0 as usize)
             }
 
-            fn deserialize_fields<Deserializer: derse::Deserializer<#lifetime>>(buf: &mut Deserializer) -> derse::Result<Self>
+            fn deserialize_fields<Deserializer: #krate::Deserializer<#lifetime>>(buf: &mut Deserializer) -> #krate::Result<Self>
             where
                 Self: Sized,
             {
-                use derse::Deserialize;
+                use #krate::Deserialize;
                 #deserialize_statements
                 Ok(result)
             }
         }
 
-        impl #impl_generics derse::Deserialize<#lifetime> for #struct_type #ty_generics #where_clause {
-            fn deserialize_from<Deserializer: derse::Deserializer<#lifetime>>(buf: &mut Deserializer) -> derse::Result<Self>
+        impl #impl_generics #krate::Deserialize<#lifetime> for #struct_type #ty_generics #where_clause {
+            fn deserialize_from<Deserializer: #krate::Deserializer<#lifetime>>(buf: &mut Deserializer) -> #krate::Result<Self>
             where
                 Self: Sized,
             {
-                use derse::DetailedDeserialize;
+                use #krate::DetailedDeserialize;
                 let len = Self::deserialize_len(buf)?;
                 let mut buf = buf.advance(len)?;
                 Self::deserialize_fields(&mut buf)
             }
         }
     }.into()
+}
+
+pub(crate) fn get_crate_name() -> proc_macro2::TokenStream {
+    let found_crate = proc_macro_crate::crate_name("derse").unwrap_or_else(|err| {
+        eprintln!("Warning: {}\n    => defaulting to `crate`", err,);
+        proc_macro_crate::FoundCrate::Itself
+    });
+
+    match found_crate {
+        proc_macro_crate::FoundCrate::Itself => quote! { crate },
+        proc_macro_crate::FoundCrate::Name(name) => {
+            let ident = syn::Ident::new(&name, proc_macro2::Span::call_site());
+            quote! { ::#ident }
+        }
+    }
 }

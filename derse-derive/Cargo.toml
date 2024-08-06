@@ -1,6 +1,6 @@
 [package]
 name = "derse-derive"
-version = "0.1.14"
+version = "0.1.15"
 authors.workspace = true
 edition.workspace = true
 homepage.workspace = true
@@ -12,6 +12,7 @@ license.workspace = true
 proc-macro = true
 
 [dependencies]
+proc-macro-crate = "3"
 proc-macro2 = "1"
 quote = "1"
 syn = "2"
