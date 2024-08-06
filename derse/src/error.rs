@@ -14,6 +14,8 @@ pub enum Error {
     VarintIsShort,
     #[error("invalid type: {0}")]
     InvalidType(String),
+    #[error("invalid value: {0}")]
+    InvalidValue(String),
 }
 
 impl Default for Error {
