@@ -30,7 +30,9 @@ pub trait Serialize {
 }
 
 /// A trait for deserializing data.
-pub trait Deserialize<'a> {
+pub trait Deserialize {
+    type Output<'a>: 'a + Sized;
+
     /// Deserializes the data from a `Deserializer`.
     ///
     /// # Arguments
@@ -40,10 +42,7 @@ pub trait Deserialize<'a> {
     /// # Returns
     ///
     /// A `Result` containing the deserialized data or an error.
-    fn deserialize<D: Deserializer<'a>>(mut der: D) -> Result<Self>
-    where
-        Self: Sized,
-    {
+    fn deserialize<'a, D: Deserializer<'a>>(mut der: D) -> Result<Self::Output<'a>> {
         Self::deserialize_from(&mut der)
     }
 
@@ -56,13 +55,13 @@ pub trait Deserialize<'a> {
     /// # Returns
     ///
     /// A `Result` containing the deserialized data or an error.
-    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
-    where
-        Self: Sized;
+    fn deserialize_from<'a, D: Deserializer<'a>>(buf: &mut D) -> Result<Self::Output<'a>>;
 }
 
 /// A trait for detailed deserialization.
-pub trait DetailedDeserialize<'a> {
+pub trait DetailedDeserialize {
+    type Output<'a>: 'a + Sized;
+
     /// Deserializes the length from the given `Deserializer`.
     ///
     /// # Arguments
@@ -72,7 +71,7 @@ pub trait DetailedDeserialize<'a> {
     /// # Returns
     ///
     /// A `Result` containing the length or an error.
-    fn deserialize_len<D: Deserializer<'a>>(buf: &mut D) -> Result<usize>;
+    fn deserialize_len<'a, D: Deserializer<'a>>(buf: &mut D) -> Result<usize>;
 
     /// Deserializes the fields from the given `Deserializer`.
     ///
@@ -83,9 +82,7 @@ pub trait DetailedDeserialize<'a> {
     /// # Returns
     ///
     /// A `Result` containing the deserialized fields or an error.
-    fn deserialize_fields<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
-    where
-        Self: Sized;
+    fn deserialize_fields<'a, D: Deserializer<'a>>(buf: &mut D) -> Result<Self::Output<'a>>;
 }
 
 macro_rules! impl_serialize_trait {
@@ -96,10 +93,10 @@ macro_rules! impl_serialize_trait {
             }
         }
 
-        impl<'a> Deserialize<'a> for $t {
-            fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
-            where
-                Self: Sized,
+        impl Deserialize for $t {
+            type Output<'a> = Self;
+
+            fn deserialize_from<'a, D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
             {
                 let front = buf.pop(std::mem::size_of::<Self>())?;
                 Ok(Self::from_le_bytes(front.as_ref().try_into().unwrap()))
@@ -116,11 +113,10 @@ impl Serialize for bool {
     }
 }
 
-impl<'a> Deserialize<'a> for bool {
-    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
-    where
-        Self: Sized,
-    {
+impl Deserialize for bool {
+    type Output<'a> = Self;
+
+    fn deserialize_from<'a, D: Deserializer<'a>>(buf: &mut D) -> Result<Self> {
         let front = buf.pop(1)?;
         match front[0] {
             0 => Ok(false),
@@ -136,11 +132,10 @@ impl Serialize for usize {
     }
 }
 
-impl<'a> Deserialize<'a> for usize {
-    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
-    where
-        Self: Sized,
-    {
+impl Deserialize for usize {
+    type Output<'a> = Self;
+
+    fn deserialize_from<'a, D: Deserializer<'a>>(buf: &mut D) -> Result<Self> {
         u64::deserialize_from(buf).map(|v| v as usize)
     }
 }
@@ -158,11 +153,10 @@ impl Serialize for &str {
     }
 }
 
-impl<'a> Deserialize<'a> for &'a str {
-    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
-    where
-        Self: Sized,
-    {
+impl<'b> Deserialize for &'b str {
+    type Output<'a> = &'a str;
+
+    fn deserialize_from<'a, D: Deserializer<'a>>(buf: &mut D) -> Result<Self::Output<'a>> {
         let len = VarInt64::deserialize_from(buf)?.0 as usize;
         let front = buf.pop(len)?;
         match front {
@@ -188,11 +182,10 @@ impl<const N: usize> Serialize for [u8; N] {
     }
 }
 
-impl<'a, const N: usize> Deserialize<'a> for [u8; N] {
-    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
-    where
-        Self: Sized,
-    {
+impl<const N: usize> Deserialize for [u8; N] {
+    type Output<'a> = Self;
+
+    fn deserialize_from<'a, D: Deserializer<'a>>(buf: &mut D) -> Result<Self> {
         let front = buf.pop(N)?;
         let mut ret = [0u8; N];
         ret.copy_from_slice(&front);
@@ -206,11 +199,10 @@ impl<'a> Serialize for Cow<'a, [u8]> {
     }
 }
 
-impl<'a> Deserialize<'a> for Cow<'a, [u8]> {
-    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
-    where
-        Self: Sized,
-    {
+impl<'b> Deserialize for Cow<'b, [u8]> {
+    type Output<'a> = Cow<'a, [u8]>;
+
+    fn deserialize_from<'a, D: Deserializer<'a>>(buf: &mut D) -> Result<Self::Output<'a>> {
         let len = VarInt64::deserialize_from(buf)?.0 as usize;
         buf.pop(len)
     }
@@ -222,11 +214,10 @@ impl<'a> Serialize for Cow<'a, str> {
     }
 }
 
-impl<'a> Deserialize<'a> for Cow<'a, str> {
-    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
-    where
-        Self: Sized,
-    {
+impl<'b> Deserialize for Cow<'b, str> {
+    type Output<'a> = Cow<'a, str>;
+
+    fn deserialize_from<'a, D: Deserializer<'a>>(buf: &mut D) -> Result<Self::Output<'a>> {
         let len = VarInt64::deserialize_from(buf)?.0 as usize;
         let front = buf.pop(len)?;
         match front {
@@ -248,12 +239,14 @@ impl<'a, T: ToOwned<Owned = T> + Serialize> Serialize for Cow<'a, T> {
     }
 }
 
-impl<'a, T: ToOwned<Owned = T> + Deserialize<'a>> Deserialize<'a> for Cow<'a, T> {
-    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
-    where
-        Self: Sized,
-    {
-        Ok(Cow::Owned(T::deserialize_from(buf)?))
+impl<'b, T: ToOwned<Owned = T> + Deserialize + Clone> Deserialize for Cow<'b, T>
+where
+    for<'c> T::Output<'c>: Clone,
+{
+    type Output<'a> = Cow<'a, T::Output<'a>>;
+
+    fn deserialize_from<'a, D: Deserializer<'a>>(buf: &mut D) -> Result<Self::Output<'a>> {
+        Ok(Cow::Owned(T::Owned::deserialize_from(buf)?))
     }
 }
 
@@ -263,11 +256,10 @@ impl Serialize for String {
     }
 }
 
-impl<'a> Deserialize<'a> for String {
-    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
-    where
-        Self: Sized,
-    {
+impl Deserialize for String {
+    type Output<'a> = String;
+
+    fn deserialize_from<'a, D: Deserializer<'a>>(buf: &mut D) -> Result<Self> {
         Ok(Cow::<str>::deserialize_from(buf)?.into_owned())
     }
 }
@@ -281,11 +273,10 @@ impl<Item: Serialize> Serialize for Vec<Item> {
     }
 }
 
-impl<'a, Item: Deserialize<'a>> Deserialize<'a> for Vec<Item> {
-    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
-    where
-        Self: Sized,
-    {
+impl<Item: Deserialize> Deserialize for Vec<Item> {
+    type Output<'a> = Vec<Item::Output<'a>>;
+
+    fn deserialize_from<'a, D: Deserializer<'a>>(buf: &mut D) -> Result<Self::Output<'a>> {
         let len = VarInt64::deserialize_from(buf)?.0 as usize;
         let mut out = Vec::with_capacity(len);
         for _ in 0..len {
@@ -304,11 +295,13 @@ impl<Item: Eq + Hash + Serialize> Serialize for HashSet<Item> {
     }
 }
 
-impl<'a, Item: Eq + Hash + Deserialize<'a>> Deserialize<'a> for HashSet<Item> {
-    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
-    where
-        Self: Sized,
-    {
+impl<Item: Eq + Hash + Deserialize> Deserialize for HashSet<Item>
+where
+    for<'b> Item::Output<'b>: Eq + Hash,
+{
+    type Output<'a> = HashSet<Item::Output<'a>>;
+
+    fn deserialize_from<'a, D: Deserializer<'a>>(buf: &mut D) -> Result<Self::Output<'a>> {
         let len = VarInt64::deserialize_from(buf)?.0 as usize;
         let mut out = HashSet::with_capacity(len);
         for _ in 0..len {
@@ -327,11 +320,13 @@ impl<K: Eq + Hash + Serialize, V: Serialize> Serialize for HashMap<K, V> {
     }
 }
 
-impl<'a, K: Eq + Hash + Deserialize<'a>, V: Deserialize<'a>> Deserialize<'a> for HashMap<K, V> {
-    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
-    where
-        Self: Sized,
-    {
+impl<K: Eq + Hash + Deserialize, V: Deserialize> Deserialize for HashMap<K, V>
+where
+    for<'b> K::Output<'b>: Eq + Hash,
+{
+    type Output<'a> = HashMap<K::Output<'a>, V::Output<'a>>;
+
+    fn deserialize_from<'a, D: Deserializer<'a>>(buf: &mut D) -> Result<Self::Output<'a>> {
         let len = VarInt64::deserialize_from(buf)?.0 as usize;
         let mut out = HashMap::with_capacity(len);
         for _ in 0..len {
@@ -354,11 +349,10 @@ impl<Item: Serialize> Serialize for Option<Item> {
     }
 }
 
-impl<'a, Item: Deserialize<'a>> Deserialize<'a> for Option<Item> {
-    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
-    where
-        Self: Sized,
-    {
+impl<Item: Deserialize> Deserialize for Option<Item> {
+    type Output<'a> = Option<Item::Output<'a>>;
+
+    fn deserialize_from<'a, D: Deserializer<'a>>(buf: &mut D) -> Result<Self::Output<'a>> {
         let has = bool::deserialize_from(buf)?;
         if has {
             Ok(Some(Item::deserialize_from(buf)?))
@@ -380,20 +374,17 @@ impl Serialize for () {
     }
 }
 
-impl<'a> Deserialize<'a> for () {
-    fn deserialize_from<D: Deserializer<'a>>(_: &mut D) -> Result<Self>
-    where
-        Self: Sized,
-    {
+impl Deserialize for () {
+    type Output<'a> = ();
+
+    fn deserialize_from<'a, D: Deserializer<'a>>(_: &mut D) -> Result<Self> {
         Ok(())
     }
 }
 
 macro_rules! tuple_serialization {
     (($($name:ident),+), ($($idx:tt),+)) => {
-        impl<'a, $($name),+> Serialize for ($($name,)+)
-        where
-            $($name: Serialize),+
+        impl<$($name: Serialize),+> Serialize for ($($name,)+)
         {
             fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
                 $((self.$idx.serialize_to(serializer))?;)+
@@ -401,13 +392,11 @@ macro_rules! tuple_serialization {
             }
         }
 
-        impl<'a, $($name),+> Deserialize<'a> for ($($name,)+)
-        where
-            $($name: Deserialize<'a>),+
+        impl<$($name: Deserialize),+> Deserialize for ($($name,)+)
         {
-            fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
-            where
-                Self: Sized,
+            type Output<'a> = ($($name::Output<'a>,)+);
+
+            fn deserialize_from<'a, D: Deserializer<'a>>(buf: &mut D) -> Result<Self::Output<'a>>
             {
                 Ok(($($name::deserialize_from(buf)?,)+))
             }
@@ -466,7 +455,7 @@ mod tests {
             assert_eq!(ser, der.as_ref());
             let bytes: DownwardBytes = der.serialize().unwrap();
 
-            let der: &str = Deserialize::deserialize(&bytes[..]).unwrap();
+            let der: &str = <&str>::deserialize(&bytes[..]).unwrap();
             assert_eq!(ser, der);
 
             let bytes2: DownwardBytes = der.serialize().unwrap();
@@ -475,7 +464,7 @@ mod tests {
             assert!(Cow::<str>::deserialize([2, 0xC0, 0xAF].as_slice()).is_err());
             assert!(Cow::<str>::deserialize([128].as_slice()).is_err());
 
-            let result: Result<&str> = Deserialize::deserialize([2, 0xC0, 0xAF].as_slice());
+            let result = <&str>::deserialize([2, 0xC0, 0xAF].as_slice());
             assert!(result.is_err());
         }
 
@@ -556,10 +545,10 @@ mod tests {
             let ser = (String::from("hello"), 64u32);
             let bytes: DownwardBytes = ser.serialize().unwrap();
             assert_eq!(bytes.len(), 1 + 5 + 4);
-            let der: (String, u32) = Deserialize::deserialize(&bytes[..]).unwrap();
+            let der = <(String, u32)>::deserialize(&bytes[..]).unwrap();
             assert_eq!(ser, der);
 
-            let der: (String, u16, u16) = Deserialize::deserialize(&bytes[..]).unwrap();
+            let der = <(String, u16, u16)>::deserialize(&bytes[..]).unwrap();
             assert_eq!(ser.0, der.0);
             assert_eq!(ser.1, der.1 as _);
             assert_eq!(0, der.2);
@@ -577,7 +566,7 @@ mod tests {
             let der = Cow::<str>::deserialize(BytesArray::new(&c)).unwrap();
             assert_eq!(msg, der);
 
-            let result: Result<&str> = Deserialize::deserialize(BytesArray::new(&c));
+            let result = Cow::<str>::deserialize(BytesArray::new(&c));
             assert!(result.is_err());
 
             assert!(String::deserialize(BytesArray::new(&c[1..])).is_err());

@@ -8,8 +8,10 @@ impl Serialize for Duration {
     }
 }
 
-impl<'a> Deserialize<'a> for Duration {
-    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
+impl Deserialize for Duration {
+    type Output<'a> = Self;
+
+    fn deserialize_from<'a, D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
     where
         Self: Sized,
     {

@@ -7,11 +7,10 @@ impl<T> Serialize for PhantomData<T> {
     }
 }
 
-impl<'a, T> Deserialize<'a> for PhantomData<T> {
-    fn deserialize_from<D: Deserializer<'a>>(_: &mut D) -> Result<Self>
-    where
-        Self: Sized,
-    {
+impl<T: 'static> Deserialize for PhantomData<T> {
+    type Output<'a> = PhantomData<T>;
+
+    fn deserialize_from<'a, D: Deserializer<'a>>(_: &mut D) -> Result<Self> {
         Ok(Default::default())
     }
 }

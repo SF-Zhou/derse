@@ -15,8 +15,14 @@ impl<T: Serialize, E: Serialize> Serialize for std::result::Result<T, E> {
     }
 }
 
-impl<'a, T: Deserialize<'a>, E: Deserialize<'a>> Deserialize<'a> for std::result::Result<T, E> {
-    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
+impl<
+        T: for<'b> Deserialize<Output<'b> = T> + 'static,
+        E: for<'b> Deserialize<Output<'b> = E> + 'static,
+    > Deserialize for std::result::Result<T, E>
+{
+    type Output<'a> = Self;
+
+    fn deserialize_from<'a, D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
     where
         Self: Sized,
     {

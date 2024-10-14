@@ -7,8 +7,10 @@ impl Serialize for Ipv4Addr {
     }
 }
 
-impl<'a> Deserialize<'a> for Ipv4Addr {
-    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
+impl Deserialize for Ipv4Addr {
+    type Output<'a> = Self;
+
+    fn deserialize_from<'a, D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
     where
         Self: Sized,
     {
@@ -24,8 +26,10 @@ impl Serialize for SocketAddrV4 {
     }
 }
 
-impl<'a> Deserialize<'a> for SocketAddrV4 {
-    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
+impl Deserialize for SocketAddrV4 {
+    type Output<'a> = Self;
+
+    fn deserialize_from<'a, D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
     where
         Self: Sized,
     {
@@ -41,8 +45,10 @@ impl Serialize for Ipv6Addr {
     }
 }
 
-impl<'a> Deserialize<'a> for Ipv6Addr {
-    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
+impl Deserialize for Ipv6Addr {
+    type Output<'a> = Self;
+
+    fn deserialize_from<'a, D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
     where
         Self: Sized,
     {
@@ -60,8 +66,10 @@ impl Serialize for SocketAddrV6 {
     }
 }
 
-impl<'a> Deserialize<'a> for SocketAddrV6 {
-    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
+impl Deserialize for SocketAddrV6 {
+    type Output<'a> = Self;
+
+    fn deserialize_from<'a, D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
     where
         Self: Sized,
     {
@@ -89,8 +97,10 @@ impl Serialize for SocketAddr {
     }
 }
 
-impl<'a> Deserialize<'a> for SocketAddr {
-    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
+impl Deserialize for SocketAddr {
+    type Output<'a> = Self;
+
+    fn deserialize_from<'a, D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
     where
         Self: Sized,
     {

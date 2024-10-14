@@ -31,7 +31,9 @@ impl Serialize for VarInt64 {
     }
 }
 
-impl<'a> Deserialize<'a> for VarInt64 {
+impl Deserialize for VarInt64 {
+    type Output<'a> = Self;
+
     /// Deserializes the `VarInt64` from the given `Deserializer`.
     ///
     /// # Arguments
@@ -41,7 +43,7 @@ impl<'a> Deserialize<'a> for VarInt64 {
     /// # Returns
     ///
     /// A `Result` containing the deserialized `VarInt64` or an error.
-    fn deserialize_from<D: crate::Deserializer<'a>>(buf: &mut D) -> Result<Self>
+    fn deserialize_from<'a, D: crate::Deserializer<'a>>(buf: &mut D) -> Result<Self>
     where
         Self: Sized,
     {
