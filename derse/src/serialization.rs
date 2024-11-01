@@ -234,9 +234,9 @@ impl<'a> Deserialize<'a> for Cow<'a, str> {
                 Ok(str) => Ok(Cow::Borrowed(str)),
                 Err(_) => Err(Error::InvalidString(Vec::from(borrowed))),
             },
-            Cow::Owned(owned) => match std::str::from_utf8(&owned) {
-                Ok(_) => Ok(Cow::Owned(unsafe { String::from_utf8_unchecked(owned) })),
-                Err(_) => Err(Error::InvalidString(owned)),
+            Cow::Owned(owned) => match String::from_utf8(owned) {
+                Ok(str) => Ok(Cow::Owned(str)),
+                Err(e) => Err(Error::InvalidString(e.into_bytes())),
             },
         }
     }
