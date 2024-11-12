@@ -152,12 +152,6 @@ impl Serialize for str {
     }
 }
 
-impl Serialize for &str {
-    fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
-        <str>::serialize_to(self, serializer)
-    }
-}
-
 impl<'a> Deserialize<'a> for &'a str {
     fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
     where
@@ -368,7 +362,7 @@ impl<'a, Item: Deserialize<'a>> Deserialize<'a> for Option<Item> {
     }
 }
 
-impl<T: Serialize> Serialize for &T {
+impl<T: Serialize + ?Sized> Serialize for &T {
     fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
         T::serialize_to(self, serializer)
     }
