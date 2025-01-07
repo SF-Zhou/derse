@@ -220,10 +220,8 @@ pub fn derse_deserialize_derive(input: TokenStream) -> TokenStream {
 }
 
 pub(crate) fn get_crate_name() -> proc_macro2::TokenStream {
-    let found_crate = proc_macro_crate::crate_name("derse").unwrap_or_else(|err| {
-        eprintln!("Warning: {}\n    => defaulting to `crate`", err,);
-        proc_macro_crate::FoundCrate::Itself
-    });
+    let found_crate =
+        proc_macro_crate::crate_name("derse").unwrap_or(proc_macro_crate::FoundCrate::Itself);
 
     match found_crate {
         proc_macro_crate::FoundCrate::Itself => quote! { crate },
