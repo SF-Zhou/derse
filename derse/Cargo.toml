@@ -16,3 +16,6 @@ derse-derive = { version = ">=0.1.14", path = "../derse-derive" }
 
 compact_str = { version = "0", optional = true }
 thiserror = "1"
+
+[dev-dependencies]
+trybuild = "1"

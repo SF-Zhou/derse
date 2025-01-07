@@ -194,3 +194,11 @@ fn test_enum() {
     2u8.serialize_to(&mut bytes).unwrap();
     println!("{}", Demo::deserialize(&bytes[..]).unwrap_err());
 }
+
+#[test]
+fn test_build() {
+    let t = trybuild::TestCases::new();
+    t.pass("tests/build/succ.rs");
+    t.compile_fail("tests/build/fail-01.rs");
+    t.compile_fail("tests/build/fail-02.rs");
+}
