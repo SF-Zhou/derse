@@ -1,6 +1,6 @@
 [package]
 name = "derse"
-version = "0.1.31"
+version = "0.1.32"
 authors.workspace = true
 edition.workspace = true
 homepage.workspace = true
@@ -9,13 +9,14 @@ description.workspace = true
 license.workspace = true
 
 [features]
-full = ["compact_str"]
+full = ["compact_str", "tinyvec"]
 
 [dependencies]
 derse-derive = { version = ">=0.1.14", path = "../derse-derive" }
 
 compact_str = { version = "0", optional = true }
 thiserror = "1"
+tinyvec = { version = "1", optional = true, features = ["alloc"] }
 
 [dev-dependencies]
 trybuild = "1"
