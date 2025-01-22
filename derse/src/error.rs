@@ -16,6 +16,8 @@ pub enum Error {
     InvalidType(String),
     #[error("invalid value: {0}")]
     InvalidValue(String),
+    #[error("invalid char: {0}")]
+    InvalidChar(u32),
 }
 
 impl Default for Error {

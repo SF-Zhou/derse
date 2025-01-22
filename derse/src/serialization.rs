@@ -145,6 +145,22 @@ impl<'a> Deserialize<'a> for usize {
     }
 }
 
+impl Serialize for char {
+    fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
+        (*self as u32).serialize_to(serializer)
+    }
+}
+
+impl<'a> Deserialize<'a> for char {
+    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        let c = u32::deserialize_from(buf)?;
+        char::from_u32(c).ok_or_else(|| Error::InvalidChar(c))
+    }
+}
+
 impl Serialize for str {
     fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
         serializer.prepend(self.as_bytes())?;
@@ -442,6 +458,16 @@ mod tests {
             bool::deserialize(&[][..]).unwrap_err().to_string(),
             "data is short for deserialize: expect 1, actual 0".to_owned()
         );
+
+        {
+            let ser = '😊';
+            let bytes: DownwardBytes = ser.serialize().unwrap();
+            let der = char::deserialize(&bytes[..]).unwrap();
+            assert_eq!(ser, der);
+
+            char::deserialize([0xff].as_slice()).unwrap_err();
+            char::deserialize([0, 0, 0x11, 0].as_slice()).unwrap_err();
+        }
 
         {
             let ser = "hello world!";
