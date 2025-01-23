@@ -20,6 +20,8 @@ pub enum Error {
     InvalidValue(String),
     #[error("invalid char: {0}")]
     InvalidChar(u32),
+    #[error("invalid length: {0}, error: {1}")]
+    InvalidLength(usize, String),
 }
 
 impl Default for Error {

@@ -2,8 +2,7 @@ mod bytes_array;
 mod deserializer;
 mod downward_bytes;
 mod error;
-mod r#impl;
-mod serialization;
+mod impls;
 mod serializer;
 mod varint64;
 

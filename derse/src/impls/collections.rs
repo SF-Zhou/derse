@@ -170,6 +170,13 @@ mod tests {
         }
 
         {
+            let ser: LinkedList<_> = (0..10).collect();
+            let bytes: DownwardBytes = ser.serialize().unwrap();
+            let der = LinkedList::<i32>::deserialize(&bytes[..]).unwrap();
+            assert_eq!(ser, der);
+        }
+
+        {
             let ser = Some("hello".to_string());
             let bytes: DownwardBytes = ser.serialize().unwrap();
             assert_eq!(bytes.len(), 1 + 1 + 5);
