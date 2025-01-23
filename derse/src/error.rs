@@ -10,12 +10,18 @@ pub enum Error {
     InvalidBool(u8),
     #[error("invalid string: {0:?}")]
     InvalidString(Vec<u8>),
+    #[error("invalid cstr: {0}")]
+    InvalidCStr(String),
     #[error("varint is short")]
     VarintIsShort,
     #[error("invalid type: {0}")]
     InvalidType(String),
     #[error("invalid value: {0}")]
     InvalidValue(String),
+    #[error("invalid char: {0}")]
+    InvalidChar(u32),
+    #[error("invalid length: {0}, error: {1}")]
+    InvalidLength(usize, String),
 }
 
 impl Default for Error {
