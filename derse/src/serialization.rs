@@ -428,40 +428,6 @@ impl<'a> Deserialize<'a> for () {
     }
 }
 
-macro_rules! tuple_serialization {
-    (($($name:ident),+), ($($idx:tt),+)) => {
-        impl<'a, $($name),+> Serialize for ($($name,)+)
-        where
-            $($name: Serialize),+
-        {
-            fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
-                $((self.$idx.serialize_to(serializer))?;)+
-                Ok(())
-            }
-        }
-
-        impl<'a, $($name),+> Deserialize<'a> for ($($name,)+)
-        where
-            $($name: Deserialize<'a>),+
-        {
-            fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
-            where
-                Self: Sized,
-            {
-                Ok(($($name::deserialize_from(buf)?,)+))
-            }
-        }
-    };
-}
-
-tuple_serialization!((H), (0));
-tuple_serialization!((H, I), (1, 0));
-tuple_serialization!((H, I, J), (2, 1, 0));
-tuple_serialization!((H, I, J, K), (3, 2, 1, 0));
-tuple_serialization!((H, I, J, K, L), (4, 3, 2, 1, 0));
-tuple_serialization!((H, I, J, K, L, M), (5, 4, 3, 2, 1, 0));
-tuple_serialization!((H, I, J, K, L, M, N), (6, 5, 4, 3, 2, 1, 0));
-
 #[cfg(test)]
 mod tests {
     use super::super::*;
