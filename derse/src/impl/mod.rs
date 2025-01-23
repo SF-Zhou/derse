@@ -1,3 +1,4 @@
+mod collections;
 mod cstr;
 mod duration;
 mod osstr;
