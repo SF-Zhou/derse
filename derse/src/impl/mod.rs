@@ -1,3 +1,4 @@
+mod cstr;
 mod duration;
 mod osstr;
 mod pathbuf;

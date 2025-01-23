@@ -10,6 +10,8 @@ pub enum Error {
     InvalidBool(u8),
     #[error("invalid string: {0:?}")]
     InvalidString(Vec<u8>),
+    #[error("invalid cstr: {0}")]
+    InvalidCStr(String),
     #[error("varint is short")]
     VarintIsShort,
     #[error("invalid type: {0}")]
