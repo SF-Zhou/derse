@@ -8,8 +8,8 @@ impl Serialize for str {
     }
 }
 
-impl<'a> Deserialize<'a> for &'a str {
-    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
+impl<'de: 'a, 'a> Deserialize<'de> for &'a str {
+    fn deserialize_from<D: Deserializer<'de>>(buf: &mut D) -> Result<Self>
     where
         Self: Sized,
     {
@@ -32,8 +32,8 @@ impl Serialize for [u8] {
     }
 }
 
-impl<'a> Deserialize<'a> for &'a [u8] {
-    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
+impl<'de: 'a, 'a> Deserialize<'de> for &'a [u8] {
+    fn deserialize_from<D: Deserializer<'de>>(buf: &mut D) -> Result<Self>
     where
         Self: Sized,
     {
@@ -64,6 +64,74 @@ impl<'a> Deserialize<'a> for String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn borrowed_values_report_truncated_length_and_payload() {
+        for bytes in [&[128][..], b"\x03a".as_slice()] {
+            assert!(<&str>::deserialize(bytes).is_err());
+            assert!(<&[u8]>::deserialize(bytes).is_err());
+            let fragments = [bytes];
+            assert!(<&str>::deserialize(BytesArray::new(&fragments)).is_err());
+            assert!(<&[u8]>::deserialize(BytesArray::new(&fragments)).is_err());
+        }
+        let invalid: &[&[u8]] = &[b"\x02\xc0\xaf"];
+        assert_eq!(
+            <&str>::deserialize(BytesArray::new(invalid)),
+            Err(Error::InvalidString(vec![0xc0, 0xaf]))
+        );
+    }
+
+    #[test]
+    fn strings_and_byte_slices_stop_after_a_failed_payload_write() {
+        let mut serializer = crate::serializer::tests::FailingSerializer::default();
+        assert_eq!(
+            "abc".serialize_to(&mut serializer),
+            Err(Error::InvalidValue("write failed".into()))
+        );
+        assert_eq!(serializer.writes, 1);
+
+        let mut serializer = crate::serializer::tests::FailingSerializer::default();
+        assert_eq!(
+            b"abc".as_slice().serialize_to(&mut serializer),
+            Err(Error::InvalidValue("write failed".into()))
+        );
+        assert_eq!(serializer.writes, 1);
+    }
+
+    #[test]
+    fn borrowed_values_can_have_shorter_lifetimes_than_the_input() {
+        fn deserialize_shorter<'de: 'a, 'a>(bytes: &'de [u8]) -> (&'a str, &'a [u8]) {
+            (
+                <&'a str as Deserialize<'de>>::deserialize(bytes).unwrap(),
+                <&'a [u8] as Deserialize<'de>>::deserialize(bytes).unwrap(),
+            )
+        }
+
+        let bytes = b"\x03abc";
+        let (text, data) = deserialize_shorter(bytes);
+        assert_eq!(text, "abc");
+        assert_eq!(data, b"abc");
+        assert_eq!(text.as_ptr(), bytes[1..].as_ptr());
+        assert_eq!(data.as_ptr(), bytes[1..].as_ptr());
+    }
+
+    #[test]
+    fn empty_values_from_fragmented_input() {
+        let fragments: &[&[u8]] = &[&[0]];
+        assert_eq!(<&str>::deserialize(BytesArray::new(fragments)).unwrap(), "");
+        assert_eq!(
+            <&[u8]>::deserialize(BytesArray::new(fragments)).unwrap(),
+            b""
+        );
+        assert!(matches!(
+            Cow::<str>::deserialize(BytesArray::new(fragments)).unwrap(),
+            Cow::Borrowed("")
+        ));
+        assert!(matches!(
+            Cow::<[u8]>::deserialize(BytesArray::new(fragments)).unwrap(),
+            Cow::Borrowed(b"")
+        ));
+    }
 
     #[test]
     fn test_string() {

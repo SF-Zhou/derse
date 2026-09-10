@@ -1,0 +1,41 @@
+error: duplicate or conflicting field default policy
+ --> tests/build/fail-attrs.rs:3:23
+  |
+3 |     #[derse(required, default = "String::new")]
+  |                       ^^^^^^^^^^^^^^^^^^^^^^^
+
+error: duplicate or conflicting field default policy
+  --> tests/build/fail-attrs.rs:10:13
+   |
+10 |     #[derse(required)]
+   |             ^^^^^^^^
+
+error: unsupported derse attribute
+  --> tests/build/fail-attrs.rs:16:13
+   |
+16 |     #[derse(optional)]
+   |             ^^^^^^^^
+
+error: expected identifier
+  --> tests/build/fail-attrs.rs:22:23
+   |
+22 |     #[derse(default = "42")]
+   |                       ^^^^
+
+error: derse attributes are only supported on fields
+  --> tests/build/fail-attrs.rs:27:1
+   |
+27 | #[derse(required)]
+   | ^^^^^^^^^^^^^^^^^^
+
+error: derse attributes are only supported on fields
+  --> tests/build/fail-attrs.rs:32:5
+   |
+32 |     #[derse(required)]
+   |     ^^^^^^^^^^^^^^^^^^
+
+error: unsupported derse attribute
+  --> tests/build/fail-attrs.rs:38:13
+   |
+38 |     #[derse(unknown)]
+   |             ^^^^^^^

@@ -1,7 +1,8 @@
 [workspace]
 members = [
     "derse",
-    "derse-derive"
+    "derse-derive",
+    "tests/renamed"
 ]
 resolver = "2"
 

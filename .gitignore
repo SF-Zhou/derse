@@ -1,2 +1,10 @@
 /target
 /Cargo.lock
+
+# LLVM coverage artifacts.
+*.profraw
+*.profdata
+/lcov.info
+
+# Temporary trybuild diagnostics awaiting review.
+/derse/wip/

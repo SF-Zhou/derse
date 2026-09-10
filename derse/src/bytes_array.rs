@@ -50,6 +50,13 @@ impl<'a> Deserializer<'a> for BytesArray<'a> {
     where
         Self: Sized,
     {
+        if len == 0 {
+            return Ok(Self {
+                arr: &[],
+                pos: 0,
+                len: 0,
+            });
+        }
         if len <= self.len {
             let mut r = len;
             let mut p = self.pos;
@@ -82,7 +89,7 @@ impl<'a> Deserializer<'a> for BytesArray<'a> {
 
         Err(Error::DataIsShort {
             expect: len,
-            actual: 0,
+            actual: self.len,
         })
     }
 
@@ -96,6 +103,9 @@ impl<'a> Deserializer<'a> for BytesArray<'a> {
     ///
     /// A `Result` containing the popped data or an error.
     fn pop(&mut self, len: usize) -> Result<Cow<'a, [u8]>> {
+        if len == 0 {
+            return Ok(Cow::Borrowed(&[]));
+        }
         if len <= self.len {
             let first_slice_len = self.arr[0].len() - self.pos;
             if len <= first_slice_len {
@@ -141,6 +151,90 @@ impl<'a> Deserializer<'a> for BytesArray<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn empty_arrays_allow_zero_length_operations() {
+        let inputs: [&[&[u8]]; 2] = [&[], &[&[], &[]]];
+        for fragments in inputs {
+            let mut arr = BytesArray::new(fragments);
+            let mut front = arr.advance(0).unwrap();
+            assert!(front.is_empty());
+            assert!(front.advance(0).unwrap().is_empty());
+            assert!(matches!(front.pop(0).unwrap(), Cow::Borrowed(b"")));
+            assert!(matches!(arr.pop(0).unwrap(), Cow::Borrowed(b"")));
+            assert!(arr.is_empty());
+            assert!(matches!(
+                arr.advance(1),
+                Err(Error::DataIsShort {
+                    expect: 1,
+                    actual: 0
+                })
+            ));
+            assert!(matches!(
+                arr.pop(1),
+                Err(Error::DataIsShort {
+                    expect: 1,
+                    actual: 0
+                })
+            ));
+        }
+    }
+
+    #[test]
+    fn zero_length_operations_do_not_consume_input() {
+        let fragments: &[&[u8]] = &[&[], b"abc", &[], b"de", &[]];
+        let mut arr = BytesArray::new(fragments);
+        assert!(!Deserializer::is_empty(&arr));
+        assert_eq!(arr.pop(1).unwrap().as_ref(), b"a");
+        assert!(arr.advance(0).unwrap().is_empty());
+        assert!(matches!(arr.pop(0).unwrap(), Cow::Borrowed(b"")));
+        assert_eq!(arr.len(), 4);
+        assert_eq!(arr.pop(4).unwrap().as_ref(), b"bcde");
+        assert!(Deserializer::is_empty(&arr));
+        assert!(arr.advance(0).unwrap().is_empty());
+        assert!(matches!(arr.pop(0).unwrap(), Cow::Borrowed(b"")));
+    }
+
+    #[test]
+    fn nested_views_respect_logical_boundaries() {
+        let fragments: &[&[u8]] = &[&[], b"abc", &[], b"de", &[]];
+        let mut arr = BytesArray::new(fragments);
+        let mut front = arr.advance(4).unwrap();
+        assert_eq!(front.pop(1).unwrap().as_ref(), b"a");
+        let mut inner = front.advance(2).unwrap();
+        assert!(matches!(
+            inner.advance(3),
+            Err(Error::DataIsShort {
+                expect: 3,
+                actual: 2
+            })
+        ));
+        assert!(matches!(
+            inner.pop(3),
+            Err(Error::DataIsShort {
+                expect: 3,
+                actual: 2
+            })
+        ));
+        assert_eq!(inner.pop(2).unwrap().as_ref(), b"bc");
+        assert!(inner.is_empty());
+        assert!(matches!(
+            inner.pop(1),
+            Err(Error::DataIsShort {
+                expect: 1,
+                actual: 0
+            })
+        ));
+        assert!(matches!(
+            front.pop(2),
+            Err(Error::DataIsShort {
+                expect: 2,
+                actual: 1
+            })
+        ));
+        assert_eq!(front.pop(1).unwrap().as_ref(), b"d");
+        assert_eq!(arr.pop(1).unwrap().as_ref(), b"e");
+    }
 
     #[test]
     fn test_deserializer() {
