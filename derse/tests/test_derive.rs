@@ -70,12 +70,16 @@ fn test_compatibility() {
 
     {
         let ser = A2("hello derse!".to_owned(), 12138, "more data".to_owned());
-        let bytes = ser.serialize::<DownwardBytes>().unwrap();
-        assert_eq!(bytes.len(), 1 + 1 + 12 + 8 + 1 + 9);
+        let next = A1("next message".to_owned(), 42);
+        let mut bytes = next.serialize::<DownwardBytes>().unwrap();
+        ser.serialize_to(&mut bytes).unwrap();
 
-        let der = A2::deserialize(&bytes[..]).unwrap();
+        let mut input = &bytes[..];
+        let der = A1::deserialize_from(&mut input).unwrap();
         assert_eq!(ser.0, der.0);
         assert_eq!(ser.1, der.1);
+        assert_eq!(A1::deserialize_from(&mut input).unwrap(), next);
+        assert!(input.is_empty());
     }
 }
 
@@ -198,7 +202,6 @@ fn test_enum() {
 #[test]
 fn test_build() {
     let t = trybuild::TestCases::new();
-    t.pass("tests/build/succ.rs");
-    t.compile_fail("tests/build/fail-01.rs");
-    t.compile_fail("tests/build/fail-02.rs");
+    t.pass("tests/build/succ*.rs");
+    t.compile_fail("tests/build/fail-*.rs");
 }

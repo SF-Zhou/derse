@@ -10,8 +10,8 @@ impl Serialize for Path {
     }
 }
 
-impl<'a> Deserialize<'a> for &'a Path {
-    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
+impl<'de: 'a, 'a> Deserialize<'de> for &'a Path {
+    fn deserialize_from<D: Deserializer<'de>>(buf: &mut D) -> Result<Self>
     where
         Self: Sized,
     {
@@ -40,10 +40,14 @@ mod tests {
 
     #[test]
     fn test_path() {
+        fn deserialize_shorter<'de: 'a, 'a>(bytes: &'de [u8]) -> &'a Path {
+            <&'a Path as Deserialize<'de>>::deserialize(bytes).unwrap()
+        }
+
         let ser = std::env::current_dir().unwrap();
 
         let bytes = ser.as_path().serialize::<DownwardBytes>().unwrap();
-        let der = <&Path>::deserialize(&bytes[..]).unwrap();
+        let der = deserialize_shorter(&bytes[..]);
         assert_eq!(ser, der);
 
         let bytes = ser.serialize::<DownwardBytes>().unwrap();

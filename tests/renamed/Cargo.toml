@@ -1,0 +1,8 @@
+[package]
+name = "derse-renamed-tests"
+version = "0.0.0"
+edition.workspace = true
+publish = false
+
+[dependencies]
+ds = { package = "derse", path = "../../derse" }

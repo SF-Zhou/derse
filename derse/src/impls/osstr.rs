@@ -11,8 +11,8 @@ impl Serialize for OsStr {
     }
 }
 
-impl<'a> Deserialize<'a> for &'a OsStr {
-    fn deserialize_from<D: Deserializer<'a>>(buf: &mut D) -> Result<Self>
+impl<'de: 'a, 'a> Deserialize<'de> for &'a OsStr {
+    fn deserialize_from<D: Deserializer<'de>>(buf: &mut D) -> Result<Self>
     where
         Self: Sized,
     {
@@ -47,12 +47,49 @@ mod tests {
     use super::*;
 
     #[test]
+    fn os_strings_preserve_non_utf8_bytes_and_report_truncation() {
+        let encoded = b"\x03a\xffb";
+        let borrowed = <&OsStr>::deserialize(&encoded[..]).unwrap();
+        assert_eq!(borrowed.as_bytes(), &encoded[1..]);
+        assert_eq!(borrowed.as_bytes().as_ptr(), encoded[1..].as_ptr());
+        let contiguous: &[&[u8]] = &[encoded];
+        assert_eq!(
+            <&OsStr>::deserialize(BytesArray::new(contiguous)).unwrap(),
+            borrowed
+        );
+
+        let fragments: &[&[u8]] = &[&encoded[..2], &encoded[2..]];
+        let owned = OsString::deserialize(BytesArray::new(fragments)).unwrap();
+        assert_eq!(owned.as_bytes(), borrowed.as_bytes());
+        assert_eq!(
+            owned.serialize::<DownwardBytes>().unwrap().as_ref(),
+            encoded
+        );
+        assert!(matches!(
+            <&OsStr>::deserialize(BytesArray::new(fragments)),
+            Err(Error::InvalidString(_))
+        ));
+
+        for bytes in [&[128][..], b"\x03a".as_slice()] {
+            assert!(<&OsStr>::deserialize(bytes).is_err());
+            assert!(OsString::deserialize(bytes).is_err());
+            let fragments = [bytes];
+            assert!(<&OsStr>::deserialize(BytesArray::new(&fragments)).is_err());
+            assert!(OsString::deserialize(BytesArray::new(&fragments)).is_err());
+        }
+    }
+
+    #[test]
     fn test_os_str() {
+        fn deserialize_shorter<'de: 'a, 'a>(bytes: &'de [u8]) -> &'a OsStr {
+            <&'a OsStr as Deserialize<'de>>::deserialize(bytes).unwrap()
+        }
+
         let path = std::env::current_dir().unwrap();
         let ser = path.as_os_str();
 
         let bytes = ser.serialize::<DownwardBytes>().unwrap();
-        let der = <&OsStr>::deserialize(&bytes[..]).unwrap();
+        let der = deserialize_shorter(&bytes[..]);
         assert_eq!(ser, der);
 
         let ser = ser.to_owned();

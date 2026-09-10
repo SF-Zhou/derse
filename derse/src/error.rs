@@ -44,6 +44,44 @@ mod tests {
     use crate::{Deserialize, DownwardBytes, Serialize};
 
     #[test]
+    fn error_variants_preserve_values_and_messages() {
+        let cases = [
+            (Error::Default, "default"),
+            (
+                Error::DataIsShort {
+                    expect: 5,
+                    actual: 2,
+                },
+                "data is short for deserialize: expect 5, actual 2",
+            ),
+            (Error::InvalidBool(2), "invalid bool: 2"),
+            (Error::InvalidString(vec![255]), "invalid string: [255]"),
+            (
+                Error::InvalidCStr("missing nul".into()),
+                "invalid cstr: missing nul",
+            ),
+            (Error::VarintIsShort, "varint is short"),
+            (Error::InvalidType("Other".into()), "invalid type: Other"),
+            (Error::InvalidValue("bad".into()), "invalid value: bad"),
+            (Error::InvalidChar(0x110000), "invalid char: 1114112"),
+            (
+                Error::InvalidLength(2, "short".into()),
+                "invalid length: 2, error: short",
+            ),
+        ];
+
+        for (error, message) in cases {
+            assert_eq!(error.clone(), error);
+            assert_eq!(error.to_string(), message);
+            assert_eq!(format!("{error:?}"), message);
+            let bytes = error.serialize::<DownwardBytes>().unwrap();
+            assert_eq!(Error::deserialize(&bytes[..]).unwrap(), error);
+        }
+        assert_ne!(Error::InvalidBool(1), Error::InvalidBool(2));
+        assert_ne!(Error::Default, Error::VarintIsShort);
+    }
+
+    #[test]
     fn test_error() {
         println!("{:?}", Error::InvalidBool(233));
 
