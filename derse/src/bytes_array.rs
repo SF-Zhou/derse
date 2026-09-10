@@ -1,51 +1,62 @@
 use super::{Deserializer, Error, Result};
 use std::borrow::Cow;
 
-/// A struct representing an array of byte slices.
+/// Reads a slice of byte slices as one logical input without joining it up front.
+///
+/// [`Deserializer::advance`] creates a bounded view without copying payload
+/// bytes. [`Deserializer::pop`] borrows when a nonempty read fits in the current
+/// fragment; a read that crosses fragments assembles an owned `Vec<u8>`. Empty
+/// reads always return a borrowed empty slice. Leading empty fragments can also
+/// put a nonempty read on the owned path.
+///
+/// A borrowed output such as `&str` cannot retain an owned temporary produced by
+/// a spanning read. Use `String` or `Cow<str>` if string payloads may be split.
+/// Cloning or copying this type creates an independent cursor over the same bytes.
+///
+/// ```
+/// use derse::{BytesArray, Deserialize};
+/// use std::borrow::Cow;
+///
+/// let fragments: &[&[u8]] = &[b"\x05he", b"llo"];
+/// let text = Cow::<str>::deserialize(BytesArray::new(fragments))?;
+/// assert_eq!(text, "hello");
+/// assert!(matches!(text, Cow::Owned(_)));
+/// # Ok::<(), derse::Error>(())
+/// ```
 #[derive(Clone, Copy)]
 pub struct BytesArray<'a> {
+    // The first fragment starts at `pos`. The final fragment may extend beyond
+    // this view; `len` is authoritative when advance() creates a shorter view.
     arr: &'a [&'a [u8]],
     pos: usize,
     len: usize,
 }
 
 impl<'a> BytesArray<'a> {
-    /// Creates a new `BytesArray` from a slice of byte slices.
+    /// Starts a cursor over all fragments, including any empty fragments.
     ///
-    /// # Arguments
-    ///
-    /// * `arr` - A slice of byte slices.
+    /// Construction sums the fragment lengths without copying their contents.
     pub fn new(arr: &'a [&[u8]]) -> Self {
         let len = arr.iter().map(|s| s.len()).sum();
         Self { arr, pos: 0, len }
     }
 
-    /// Returns the total length of the byte slices.
+    /// Returns the number of unconsumed bytes in this view.
     pub fn len(&self) -> usize {
         self.len
     }
 
-    /// Checks if the `BytesArray` is empty.
+    /// Returns whether this view has no unconsumed bytes.
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
 }
 
 impl<'a> Deserializer<'a> for BytesArray<'a> {
-    /// Checks if the `BytesArray` is empty.
     fn is_empty(&self) -> bool {
         self.len == 0
     }
 
-    /// Advances the `BytesArray` by the specified length.
-    ///
-    /// # Arguments
-    ///
-    /// * `len` - The length to advance.
-    ///
-    /// # Returns
-    ///
-    /// A `Result` containing the advanced `BytesArray` or an error.
     fn advance(&mut self, len: usize) -> Result<Self>
     where
         Self: Sized,
@@ -93,15 +104,6 @@ impl<'a> Deserializer<'a> for BytesArray<'a> {
         })
     }
 
-    /// Pops the specified length of data from the `BytesArray`.
-    ///
-    /// # Arguments
-    ///
-    /// * `len` - The length of data to pop.
-    ///
-    /// # Returns
-    ///
-    /// A `Result` containing the popped data or an error.
     fn pop(&mut self, len: usize) -> Result<Cow<'a, [u8]>> {
         if len == 0 {
             return Ok(Cow::Borrowed(&[]));

@@ -1,3 +1,9 @@
+//! OS strings encode their raw Unix bytes with a VarInt64 byte-length prefix.
+//!
+//! No UTF-8 conversion or validation occurs. These unconditional Unix extension
+//! imports currently make the crate Unix-only. Borrowed OsStr decoding needs a
+//! borrowed payload; OsString accepts an assembled owned payload as well.
+
 use crate::*;
 use std::{
     borrow::Cow,

@@ -1,3 +1,8 @@
+//! Duration encodes u64 seconds followed by u32 subsecond nanoseconds (12 bytes).
+//!
+//! The decoder delegates to Duration::new: excess nanoseconds are normalized,
+//! and malformed input that overflows the seconds count can panic.
+
 use crate::*;
 use std::time::Duration;
 

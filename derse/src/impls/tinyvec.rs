@@ -1,3 +1,6 @@
+//! TinyVec uses Vec's count-prefixed element encoding, independent of its inline
+//! capacity. Decoding reserves for the declared count before reading elements.
+
 use crate::{Deserialize, Serialize, VarInt64};
 
 impl<A: tinyvec::Array> Serialize for tinyvec::TinyVec<A>

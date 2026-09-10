@@ -1,12 +1,13 @@
 [package]
 name = "derse-derive"
-version = "0.1.15"
+version.workspace = true
 authors.workspace = true
 edition.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description.workspace = true
 license.workspace = true
+readme.workspace = true
 
 [lib]
 proc-macro = true
@@ -18,5 +19,7 @@ quote = "1"
 syn = { version = "2", features = ["visit"] }
 
 [dev-dependencies]
+# Workspace-only tests need the runtime name for proc-macro-crate resolution.
+# Leave this path-only so publishing the macro does not depend on the new runtime.
 derse = { path = "../derse" }
 syn = { version = "2", features = ["full"] }

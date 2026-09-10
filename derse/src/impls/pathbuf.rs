@@ -1,3 +1,6 @@
+//! Paths use the same encoding as their OS strings, preserving raw Unix bytes.
+//! No normalization occurs. Borrowed paths need a borrowable OS-string payload.
+
 use crate::*;
 use std::{
     ffi::{OsStr, OsString},

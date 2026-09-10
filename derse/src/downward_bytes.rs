@@ -1,46 +1,67 @@
 use super::{Result, Serializer};
 
-/// A struct for managing a downward-growing byte buffer.
+/// A reusable byte buffer optimized for prepending an encoding.
+///
+/// Written bytes occupy the end of the allocation. A prepend copies new bytes
+/// into the space immediately before them; existing bytes move only when the
+/// allocation grows. [`as_slice`](Self::as_slice) and `Deref<Target = [u8]>`
+/// expose the encoded bytes in their final order.
+///
+/// ```
+/// use derse::DownwardBytes;
+///
+/// let mut bytes = DownwardBytes::with_capacity(16);
+/// bytes.prepend("world");
+/// bytes.prepend("hello ");
+/// assert_eq!(bytes.as_slice(), b"hello world");
+/// bytes.clear();
+/// assert!(bytes.is_empty());
+/// assert_eq!(bytes.capacity(), 16);
+/// ```
 #[derive(Default)]
 pub struct DownwardBytes(Vec<u8>);
 
 impl DownwardBytes {
-    /// Creates a new `DownwardBytes` instance.
+    /// Creates an empty buffer without allocating.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Creates a new `DownwardBytes` instance with the specified capacity.
+    /// Creates an empty buffer with space for `cap` encoded bytes.
     pub fn with_capacity(cap: usize) -> Self {
         Self(Self::new_vec(cap, cap))
     }
 
-    /// Returns the current offset in the buffer.
+    // The backing Vec's length is used as the start offset of the encoded tail,
+    // rather than the number of encoded bytes. Do not expose the Vec as data.
     fn offset(&self) -> usize {
         self.0.len()
     }
 
-    /// Returns the length of the serialized data.
+    /// Returns the number of encoded bytes, excluding unused prefix capacity.
     pub fn len(&self) -> usize {
         self.capacity() - self.offset()
     }
 
-    /// Checks if the buffer is empty.
+    /// Returns whether the buffer contains no encoded bytes.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
-    /// Returns the capacity of the buffer.
+    /// Returns the allocation's total capacity, including unused prefix space.
     pub fn capacity(&self) -> usize {
         self.0.capacity()
     }
 
-    /// Clears the buffer.
+    /// Discards all encoded bytes while retaining the allocation for reuse.
     pub fn clear(&mut self) {
         unsafe { self.0.set_len(self.capacity()) };
     }
 
-    /// Clears the buffer and shrinks its capacity to the specified size.
+    /// Clears the buffer and reduces its capacity if it exceeds `capacity`.
+    ///
+    /// A larger requested capacity does not grow the buffer. When shrinking,
+    /// the old allocation is replaced with an empty buffer of the requested size.
     pub fn clear_and_shrink_to(&mut self, capacity: usize) {
         if self.capacity() <= capacity {
             unsafe { self.0.set_len(self.capacity()) };
@@ -49,19 +70,22 @@ impl DownwardBytes {
         }
     }
 
-    /// Returns the buffer as a slice.
+    /// Borrows the encoded tail in wire order, excluding unused prefix space.
     pub fn as_slice(&self) -> &[u8] {
         unsafe { std::slice::from_raw_parts(self.0.as_ptr().byte_add(self.offset()), self.len()) }
     }
 
-    /// Returns the buffer as a mutable slice.
+    // Returns the destination tail used when moving bytes to a new allocation.
     fn as_mut_slice(&mut self) -> &mut [u8] {
         unsafe {
             std::slice::from_raw_parts_mut(self.0.as_mut_ptr().byte_add(self.offset()), self.len())
         }
     }
 
-    /// Prepends data to the buffer.
+    /// Copies `data` before the existing bytes, growing the buffer if necessary.
+    ///
+    /// The argument's byte order is preserved. The inherent method has no error
+    /// result; its [`Serializer`] adapter returns `Ok(())` after this operation.
     pub fn prepend(&mut self, data: impl AsRef<[u8]>) {
         let buf = data.as_ref();
         if self.offset() < buf.len() {
@@ -73,7 +97,11 @@ impl DownwardBytes {
         self.0.truncate(new_offset)
     }
 
-    /// Reserves space for the specified size.
+    /// Ensures capacity for at least `size` total encoded bytes.
+    ///
+    /// `size` includes bytes already present; it is not an additional byte count.
+    /// If growth is necessary, capacity at least doubles and existing bytes are
+    /// copied to the end of the new allocation.
     pub fn reserve(&mut self, size: usize) {
         if self.capacity() < size {
             let new_cap = std::cmp::max(self.capacity() * 2, size);
@@ -83,7 +111,9 @@ impl DownwardBytes {
         }
     }
 
-    /// Creates a new vector with the specified capacity and length.
+    // Allocates the backing storage and sets its encoded-tail offset. This
+    // representation uses Vec length as bookkeeping, not as an initialized-data
+    // count; callers must not read the unused prefix as encoded bytes.
     #[allow(clippy::uninit_vec)]
     fn new_vec(cap: usize, len: usize) -> Vec<u8> {
         let mut vec = Vec::with_capacity(cap);
@@ -93,13 +123,11 @@ impl DownwardBytes {
 }
 
 impl Serializer for DownwardBytes {
-    /// Prepends data to the buffer.
     fn prepend(&mut self, data: impl AsRef<[u8]>) -> Result<()> {
         self.prepend(data);
         Ok(())
     }
 
-    /// Returns the length of the serialized data.
     fn len(&self) -> usize {
         self.len()
     }

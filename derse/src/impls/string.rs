@@ -1,3 +1,10 @@
+//! UTF-8 strings and raw byte slices use a VarInt64 byte length before the payload.
+//!
+//! Borrowed results require pop() to return borrowed bytes; an owned temporary
+//! cannot be lent for the input lifetime. That case currently uses InvalidString
+//! with an empty payload, even for raw bytes. Owned String decoding goes through
+//! `Cow<str>` so that fragmented payloads can be assembled and validated.
+
 use crate::*;
 use std::borrow::Cow;
 

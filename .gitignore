@@ -8,3 +8,6 @@
 
 # Temporary trybuild diagnostics awaiting review.
 /derse/wip/
+
+# Python release-tool test caches.
+__pycache__/

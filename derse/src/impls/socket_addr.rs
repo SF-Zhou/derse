@@ -1,3 +1,10 @@
+//! IP addresses use network-order octets without a prefix; socket fields then
+//! follow as little-endian integers: port, and for IPv6 flowinfo and scope_id.
+//! SocketAddr adds a boolean family tag (0 for IPv4, 1 for IPv6).
+//!
+//! The current IPv4 decoder's to_be() conversion assumes a little-endian host;
+//! the encoding itself always uses network-order octets.
+
 use crate::*;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 

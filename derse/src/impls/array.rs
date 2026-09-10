@@ -1,11 +1,18 @@
+//! Fixed arrays contain their elements in index order without a length prefix.
+//!
+//! Both directions support lengths 0 through 32. A zero-length array consumes
+//! no bytes, while its element type still needs the corresponding trait bound.
+
 use crate::*;
 
 const MAX_ARRAY_LENGTH: usize = 32;
 
 impl<T: Serialize, const N: usize> Serialize for [T; N] {
     fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
-        // Keep the array impl for every N so byte arrays cannot silently fall
-        // back to the slice impl. Reject unsupported lengths during codegen.
+        // Keep the trait impl for every N: omitting unsupported impls would let
+        // byte-array method calls coerce to [u8] and add a slice length prefix.
+        // The assertion is evaluated on monomorphization during code generation,
+        // so cargo check alone does not reject a call with N > 32.
         const {
             assert!(
                 N <= MAX_ARRAY_LENGTH,
@@ -20,8 +27,9 @@ impl<T: Serialize, const N: usize> Serialize for [T; N] {
 }
 
 macro_rules! array_impls {
-    // Each length expands to a literal array; Rust drops initialized elements
-    // if a later element returns an error or panics.
+    // Accumulated indices provide one direct element decoder per array slot.
+    // Each length expands to a literal array, without an Option or heap buffer.
+    // Rust drops initialized elements if a later element returns Err or panics.
     ([$($index:expr,)*] $len:expr $(, $rest:expr)*) => {
         impl<'a, T: Deserialize<'a>> Deserialize<'a> for [T; $len] {
             fn deserialize_from<D: Deserializer<'a>>(_buf: &mut D) -> Result<Self> {

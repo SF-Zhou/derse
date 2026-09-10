@@ -2,12 +2,18 @@
 
 Notable changes to `derse` and `derse-derive` are recorded here, with the newest
 changes first. Tracking starts at `derse` 0.1.34 and `derse-derive` 0.1.15;
-earlier releases are not backfilled.
+earlier releases are not backfilled. Starting with the planned `0.2.0-alpha`,
+both crates share one release version. `Unreleased` entries describe the current
+checkout and do not indicate that a version has been published.
 
 ## Unreleased
 
 ### Added
 
+- A workspace version tool and CI checks for synchronized package versions,
+  exact internal dependencies, and the non-published test fixture.
+- A wire-format reference, development guide, and workspace release procedure,
+  including prerelease selection and recovery from a partially completed release.
 - Field attributes for derived deserialization: `#[derse(required)]`,
   `#[derse(default)]`, and `#[derse(default = "path::to_function")]`. Required
   fields and custom defaults do not require the field type to implement `Default`.
@@ -20,6 +26,14 @@ earlier releases are not backfilled.
 
 ### Changed
 
+- Unify all workspace package versions at `0.2.0-alpha`. Publish `derse` and
+  `derse-derive` together, with the runtime depending on the exact matching macro
+  version instead of the open-ended `>=0.1.14` requirement.
+- Rewrite API documentation and implementation comments to describe encoding
+  order, borrowing, input consumption, missing-field policies, and current limits.
+  Add executable documentation examples. Include the shared README and both
+  license texts in each published crate.
+- Check public API documentation and rehearse workspace publication in CI.
 - Simplify collection and tuple macros and generate array deserializers from a
   single length list, preserving encoding order and element trait requirements.
   Arrays are constructed directly for lengths `0..=32`.
@@ -49,6 +63,9 @@ earlier releases are not backfilled.
 
 ### Compatibility notes
 
+- The version and documentation updates introduce no runtime or generated-code
+  changes. Moving to `0.2.0-alpha` requires consumers to opt into that prerelease;
+  existing `derse = "0.1"` requirements remain on the `0.1.x` series.
 - Public serialization and deserialization trait method signatures are unchanged.
   Existing calls and manual trait implementations keep the same signatures.
 - Field order, length prefixes, enum name tags, and array/tuple layouts are
@@ -65,6 +82,13 @@ earlier releases are not backfilled.
 - Correcting the `actual` field in `Error::DataIsShort` changes the diagnostic
   value and, when that error value is serialized, its bytes; the error type's
   layout is unchanged.
+
+### Known issues
+
+- The documentation review identified existing `DownwardBytes` storage safety,
+  IPv4 decoding on big-endian hosts, and overflowing `Duration` input issues.
+  These are not fixed by the version update; see
+  [development notes](CONTRIBUTING.md#existing-implementation-issues).
 
 ## 0.1.34
 

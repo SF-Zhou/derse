@@ -1,3 +1,5 @@
+//! PhantomData occupies no bytes and imposes no encoding bounds on its parameter.
+
 use crate::*;
 use std::marker::PhantomData;
 

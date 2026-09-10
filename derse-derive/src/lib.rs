@@ -1,4 +1,77 @@
-//! Derive serialization and deserialization for structs and enums.
+//! Derive macros for the `derse` binary serialization traits.
+//!
+//! Applications normally use the macros re-exported by `derse`; a separate
+//! `derse-derive` dependency is unnecessary. Named, tuple, and unit structs and
+//! enum variants are supported. Unions are not supported.
+//!
+//! # Encoding and compatibility
+//!
+//! Each derived value starts with a `VarInt64` byte length for its body. Struct
+//! bodies contain fields in declaration order. Enum bodies contain the variant
+//! name encoded as a string, followed by that variant's fields in declaration
+//! order. Field names are not encoded; renaming a variant changes its tag.
+//!
+//! Deserialization reads within the declared body length and skips any trailing
+//! bytes that the known fields do not consume. Appending fields can therefore
+//! preserve compatibility: older readers skip them, and newer readers can use
+//! defaults when reading an older body. Reordering fields or changing their
+//! encodings does not provide the same guarantee.
+//!
+//! # Missing fields
+//!
+//! By default, a field uses `Default::default()` when the remaining body is empty.
+//! Field attributes can select a different policy:
+//!
+//! - `#[derse(default)]` explicitly selects the default behavior.
+//! - `#[derse(default = "path::to_function")]` calls a zero-argument function that
+//!   returns the field's type. The field does not need to implement `Default`.
+//! - `#[derse(required)]` always calls the field's deserializer, without a default.
+//!
+//! These attributes do not change serialization. They cannot be combined on one
+//! field or applied to a container or variant. Defaults do not recover from a
+//! partially encoded field: if any body bytes remain, decoding errors propagate.
+//! A required field whose encoding consumes no bytes can still decode from an
+//! empty body.
+//!
+//! ```
+//! use derse::{Deserialize, DownwardBytes, Serialize};
+//!
+//! #[derive(Serialize)]
+//! struct Earlier {
+//!     name: String,
+//! }
+//!
+//! #[derive(Debug, PartialEq, Serialize, Deserialize)]
+//! struct Current<'a> {
+//!     #[derse(required)]
+//!     name: &'a str,
+//!     #[derse(default = "default_revision")]
+//!     revision: u8,
+//! }
+//!
+//! fn default_revision() -> u8 {
+//!     1
+//! }
+//!
+//! let bytes: DownwardBytes = Earlier { name: "example".into() }.serialize()?;
+//! let value = Current::deserialize(bytes.as_slice())?;
+//! assert_eq!(value, Current { name: "example", revision: 1 });
+//! # Ok::<(), derse::Error>(())
+//! ```
+//!
+//! # Generics and borrowed data
+//!
+//! The macros infer bounds from field types and preserve the input's generic
+//! parameters and `where` clauses. For example, a `PhantomData<T>` field does not
+//! require `T: Serialize`. Borrowed fields are supported when their own
+//! `Deserialize` implementations can borrow from the chosen input deserializer.
+//! The generated input lifetime is normally independent of the type's lifetimes;
+//! an existing lifetime used by a type parameter's `Deserialize<'a>` bound is
+//! reused when present.
+//!
+//! Generated calls use the `derse` traits explicitly, so similarly named inherent
+//! methods do not affect the encoding. The runtime dependency is resolved from
+//! the caller's Cargo manifest, including a renamed `derse` dependency.
 
 use std::collections::HashSet;
 
@@ -14,7 +87,11 @@ use syn::{
 #[cfg(test)]
 mod tests;
 
-/// Derives `Serialize`, preserving field order and prefixing the encoded body with its length.
+/// Implements `derse::Serialize` for a struct or enum.
+///
+/// The body preserves field declaration order and has a `VarInt64` byte-length
+/// prefix. An enum body begins with its variant name encoded as a string. Field
+/// default attributes are validated but do not affect the encoded bytes.
 #[proc_macro_derive(Serialize, attributes(derse))]
 pub fn derse_serialize_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -23,11 +100,13 @@ pub fn derse_serialize_derive(input: TokenStream) -> TokenStream {
         .into()
 }
 
-/// Derives `Deserialize` and `DetailedDeserialize`.
+/// Implements `derse::Deserialize` and `derse::DetailedDeserialize`.
 ///
-/// Missing trailing fields use `Default` unless marked `#[derse(required)]` or
-/// `#[derse(default = "path::to_function")]`. Required fields always invoke their
-/// deserializer; custom default functions take no arguments and return the field type.
+/// The decoder confines field reads to the length-prefixed body and skips unknown
+/// trailing bytes. Missing fields use `Default` unless marked
+/// `#[derse(required)]` or `#[derse(default = "path::to_function")]`; see the
+/// crate documentation for these policies. A partially encoded field remains an
+/// error. `DetailedDeserialize` exposes the length and body decoding separately.
 #[proc_macro_derive(Deserialize, attributes(derse))]
 pub fn derse_deserialize_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -36,6 +115,7 @@ pub fn derse_deserialize_derive(input: TokenStream) -> TokenStream {
         .into()
 }
 
+// Each field has exactly one policy, including fields with no attribute.
 enum DefaultPolicy {
     Trait,
     Required,
@@ -87,12 +167,15 @@ enum SupportedData<'a> {
     Enum(&'a syn::DataEnum),
 }
 
+// Fields and policies share a flat index across all enum variants, in declaration
+// order. Bound inference and generated reads/writes must use the same indices.
 struct ValidatedInput<'a> {
     data: SupportedData<'a>,
     fields: Vec<&'a Field>,
     policies: Vec<DefaultPolicy>,
 }
 
+// Both derives validate the same input, even though only Deserialize uses defaults.
 fn validate(input: &DeriveInput) -> syn::Result<ValidatedInput<'_>> {
     reject_container_attributes(&input.attrs)?;
     let (data, fields): (_, Vec<_>) = match &input.data {
@@ -126,8 +209,9 @@ fn validate(input: &DeriveInput) -> syn::Result<ValidatedInput<'_>> {
     })
 }
 
-// Include higher-ranked lifetimes and paths inside custom-default strings.
-// Collect once per derive rather than rescanning the input for every binding.
+// Reserve names from the complete syntax tree, including higher-ranked lifetimes
+// and paths parsed from custom-default strings. Compare raw identifiers by their
+// unescaped spelling so `r#__derse_buf` also reserves `__derse_buf`.
 #[derive(Default)]
 struct Names(HashSet<String>);
 
@@ -162,8 +246,9 @@ impl Names {
     }
 }
 
-// Concrete fields need no where predicates. In particular, adding them for
-// recursive aliases or mutually recursive types would create a trait-bound cycle.
+// Concrete fields are checked by the generated method bodies. Adding redundant
+// where predicates for them can create cycles through aliases or mutually
+// recursive types. This syntactic check also includes consts and lifetimes.
 fn uses_generics(ty: &Type, generics: &Generics) -> bool {
     let mut names = Names::default();
     names.visit_type(ty);
@@ -177,9 +262,8 @@ fn uses_generics(ty: &Type, generics: &Generics) -> bool {
     })
 }
 
-// Preserve explicit user bounds, including the input lifetime they name. This
-// is also important for generic recursive aliases, which cannot be recognized
-// from their spelling in the derive input.
+// Collect bounds directly on a type parameter, from either declaration syntax.
+// Bounds on projections such as T::Item do not describe T itself.
 fn bounds_for<'a>(generics: &'a Generics, ident: &Ident) -> Vec<&'a syn::TypeParamBound> {
     let mut bounds: Vec<_> = generics
         .type_params()
@@ -199,6 +283,8 @@ fn bounds_for<'a>(generics: &'a Generics, ident: &Ident) -> Vec<&'a syn::TypePar
     bounds
 }
 
+// A higher-ranked lifetime belongs to its bound, not the generated impl. Trait
+// paths are recognized by their final segment; the macro cannot resolve names.
 fn deserialize_lifetime(bound: &syn::TypeParamBound) -> Option<&Lifetime> {
     let syn::TypeParamBound::Trait(bound) = bound else {
         return None;
@@ -219,6 +305,9 @@ fn deserialize_lifetime(bound: &syn::TypeParamBound) -> Option<&Lifetime> {
     })
 }
 
+// Reuse an explicitly bounded input lifetime instead of introducing a competing
+// Deserialize obligation for the same type parameter. Only lifetimes declared
+// on the input type can become the impl's input lifetime this way.
 fn existing_input_lifetime(generics: &Generics) -> Option<Lifetime> {
     generics
         .type_params()
@@ -232,6 +321,9 @@ fn existing_input_lifetime(generics: &Generics) -> Option<Lifetime> {
         .cloned()
 }
 
+// Preserve compatible parameter bounds rather than inferring additional field
+// bounds. This also permits generic recursive aliases whose recursion is hidden
+// from the derive input. The generated trait calls still check each field type.
 fn explicitly_bounded(
     ty: &Type,
     generics: &Generics,
@@ -342,9 +434,10 @@ fn construct(fields: &Fields, constructor: TokenStream2, values: &[TokenStream2]
     }
 }
 
-// Tag each field's bounds so that types differing only in lifetime cannot cause
-// ambiguous predicates. Tuple and PhantomData impls already exist in derse;
-// the marker encodes no bytes and avoids adding a new runtime API dependency.
+// Route field bounds and trait calls through an indexed tuple. Distinct markers
+// keep obligations for types differing only in lifetime from becoming ambiguous.
+// Tuple encoding adds no framing and PhantomData consumes no bytes, so this bridge
+// preserves each field's wire representation using existing runtime traits.
 fn marker(index: usize) -> TokenStream2 {
     quote! { ::core::marker::PhantomData<[(); #index]> }
 }
@@ -388,6 +481,8 @@ fn expand_serialize(input: &DeriveInput) -> syn::Result<TokenStream2> {
     let serializer = names.ident("__derse_serializer");
     let start = names.ident("__derse_start");
     let len = names.ident("__derse_len");
+    // Use trait-qualified calls through the same bridge as the where predicates;
+    // method syntax could select a field type's unrelated inherent method.
     let write = |value: TokenStream2, index: usize| {
         let marker = marker(index);
         quote! {
@@ -396,6 +491,8 @@ fn expand_serialize(input: &DeriveInput) -> syn::Result<TokenStream2> {
             )?;
         }
     };
+    // Serializers prepend, so writing fields backwards preserves declaration
+    // order in the finished body. Enum tags and body lengths are prepended last.
     let statements = match &data {
         SupportedData::Struct(data) => {
             let statements = data.fields.iter().enumerate().rev().map(|(index, field)| {
@@ -436,6 +533,8 @@ fn expand_serialize(input: &DeriveInput) -> syn::Result<TokenStream2> {
             quote! { match self { #(#arms,)* } }
         }
     };
+    // Matching an empty enum through &Self is not exhaustive; dereferencing makes
+    // its uninhabited type visible to the exhaustiveness checker.
     let body = if matches!(&data, SupportedData::Enum(data) if data.variants.is_empty()) {
         quote! { match *self {} }
     } else {
@@ -487,8 +586,8 @@ fn deserialize_fields(
             let marker = marker(*index);
             let policy = &policies[*index];
             *index += 1;
-            // The tuple bound also avoids conflicting with an explicit
-            // T: Deserialize<'a> that the user may have put on their type.
+            // Match the indexed predicates used by bound inference. The same
+            // bridge delegates both decoding and Default to the field type.
             let bridge = quote! { (#ty, #marker) };
             let read = quote_spanned! {field.span()=>
                 <#bridge as #krate::Deserialize<#lifetime>>::deserialize_from(#buf)?.0
@@ -500,6 +599,8 @@ fn deserialize_fields(
                 },
                 DefaultPolicy::Function(path) => quote_spanned! {field.span()=> #path() },
             };
+            // Defaults describe absent trailing fields, never recovery from a
+            // field decoder's error. Required fields bypass this emptiness test.
             quote! {
                 if #krate::Deserializer::is_empty(#buf) { #default } else { #read }
             }
@@ -597,6 +698,8 @@ fn expand_deserialize(input: &DeriveInput) -> syn::Result<TokenStream2> {
                     quote! { #tag => #value }
                 })
                 .collect::<Vec<_>>();
+            // A fragmented deserializer may need to own the variant name;
+            // borrowing it unconditionally as &str would reject valid input.
             quote! {
                 let #tag = <::std::borrow::Cow<#lifetime, str> as #krate::Deserialize<#lifetime>>::deserialize_from(#buf)?;
                 match #tag.as_ref() {
@@ -608,6 +711,9 @@ fn expand_deserialize(input: &DeriveInput) -> syn::Result<TokenStream2> {
             }
         }
     };
+    // advance() consumes the whole framed body from the outer input up front.
+    // Field reads cannot spill into the next value, and unread trailing fields
+    // are discarded with the body view, including when a field returns an error.
     Ok(isolate(
         quote! {
             #[automatically_derived]
@@ -642,6 +748,8 @@ fn expand_deserialize(input: &DeriveInput) -> syn::Result<TokenStream2> {
     ))
 }
 
+// Recursion detection is deliberately syntactic: the derive has no name resolver
+// for aliases or arbitrary module paths.
 fn is_self_path(ty: &syn::TypePath, name: &Ident) -> bool {
     if ty.qself.is_some() {
         return false;
@@ -709,6 +817,8 @@ fn nonrecursive_types<'a>(ty: &'a Type, name: &Ident) -> Vec<&'a Type> {
     bounds.types
 }
 
+// Resolve Cargo dependency renames instead of assuming `::derse`. Missing runtime
+// dependencies are expansion errors; treating them as `crate` hides the cause.
 fn get_crate_name() -> syn::Result<TokenStream2> {
     let found = proc_macro_crate::crate_name("derse")
         .map_err(|error| syn::Error::new(Span::call_site(), error))?;

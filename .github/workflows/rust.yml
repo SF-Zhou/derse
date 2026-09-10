@@ -16,10 +16,31 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Use stable Rust
+      run: |
+        rustup toolchain install stable --profile minimal --component rustfmt,llvm-tools-preview
+        rustup default stable
+
+    - name: Check release versions and tooling
+      run: |
+        python3 scripts/version.py check
+        python3 -B -m unittest discover -s scripts
+
+    - name: Check formatting and documentation
+      env:
+        RUSTDOCFLAGS: "-D warnings -D missing_docs"
+      run: |
+        cargo fmt --all -- --check
+        cargo doc --workspace --all-features --no-deps
+        cargo test --workspace --all-features --doc
+
+    - name: Rehearse workspace publication
+      run: cargo publish --workspace --all-features --registry crates-io --dry-run
+
     - name: Run tests
       run: |
-        cargo install cargo-llvm-cov
-        cargo llvm-cov --workspace --release --features full --fail-under-lines 100 --lcov --output-path lcov.info
+        cargo install cargo-llvm-cov --locked
+        cargo llvm-cov --workspace --release --all-features --fail-under-lines 100 --lcov --output-path lcov.info
 
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v4

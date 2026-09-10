@@ -1,3 +1,6 @@
+//! Result uses a boolean tag followed by one payload: 1 for Ok and 0 for Err.
+//! This is distinct from the name-tagged encoding generated for user-defined enums.
+
 use crate::*;
 
 impl<T: Serialize, E: Serialize> Serialize for std::result::Result<T, E> {
