@@ -48,6 +48,9 @@ checkout and do not indicate that a version has been published.
 
 ### Fixed
 
+- Decode IPv4 addresses correctly on big-endian hosts, including IPv4 socket
+  addresses. Preserve serialized bytes, the single four-byte read, and existing
+  short-input errors and cursor behavior.
 - Use explicit trait calls in generated code so same-named inherent methods
   cannot override serialization or detailed deserialization.
 - Resolve renamed `derse` dependencies consistently and prevent generated names
@@ -85,9 +88,8 @@ checkout and do not indicate that a version has been published.
 
 ### Known issues
 
-- The documentation review identified existing `DownwardBytes` storage safety,
-  IPv4 decoding on big-endian hosts, and overflowing `Duration` input issues.
-  These are not fixed by the version update; see
+- The documentation review identified existing `DownwardBytes` storage safety
+  and overflowing `Duration` input issues. These still need separate fixes; see
   [development notes](CONTRIBUTING.md#existing-implementation-issues).
 
 ## 0.1.34

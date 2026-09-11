@@ -39,6 +39,19 @@ Cargo removes that dependency from the published archive, avoiding a release
 dependency cycle. Running the macro unit tests directly from that archive does
 not recreate the workspace test environment.
 
+## Big-endian IPv4 decoding
+
+Use Miri to run the IPv4 decoding tests on a big-endian target. This requires
+nightly Rust with the `miri` and `rust-src` components:
+
+```sh
+rustup toolchain install nightly --profile minimal --component miri --component rust-src
+MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test -p derse --lib --target s390x-unknown-linux-gnu ipv4_decode_
+```
+
+These tests decode fixed input bytes. They check IP decoding without exercising
+`DownwardBytes` or validating the rest of the runtime on that target.
+
 ## Coverage
 
 Install the LLVM component and coverage tool once:
@@ -111,9 +124,6 @@ The documentation review identified issues that version unification does not fix
   [`Vec::set_len`'s initialization contract](https://doc.rust-lang.org/std/vec/struct.Vec.html#method.set_len).
   Its storage representation needs a separate fix before publishing; comments
   about only exposing the encoded tail do not establish memory safety.
-- IPv4 deserialization combines a little-endian integer read with `to_be`, which
-  reverses the address on big-endian hosts. The decoder should be tested using
-  octets on such a target before claiming support there.
 - `Duration` deserialization can panic on overflowing input through
   `Duration::new`; the decoder currently does not return an error for that case.
 

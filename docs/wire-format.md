@@ -118,10 +118,10 @@ string tags or body-length prefixes of derived enums.
 | `SocketAddrV6` | IPv6 octets, port as `u16`, flow info as `u32`, scope ID as `u32`; integers are little-endian. |
 | `Duration` | Seconds as little-endian `u64`, then subsecond nanoseconds as little-endian `u32`. |
 
-The current IPv4 decoder only reconstructs the correct octet order on
-little-endian hosts. `Duration` decoding calls `Duration::new`, which normalizes
+IP decoders reconstruct address octets independently of host endianness.
+`Duration` decoding calls `Duration::new`, which normalizes
 nanoseconds outside the subsecond range and can panic if the resulting seconds
-overflow. These are existing implementation limitations, not extra wire fields.
+overflow. This is an existing implementation limitation, not an extra wire field.
 
 ## Derived structs and enums
 
