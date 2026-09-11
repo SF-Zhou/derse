@@ -7,7 +7,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.2.0-alpha"
+version = "0.2.0"
 authors = ["SF-Zhou <sfzhou.scut@gmail.com>"]
 edition = "2021"
 homepage = "https://github.com/SF-Zhou/derse"
@@ -18,4 +18,4 @@ readme = "README.md"
 
 [workspace.dependencies]
 # Generated code and its runtime are released and tested as one version.
-derse-derive = { version = "=0.2.0-alpha", path = "derse-derive" }
+derse-derive = { version = "=0.2.0", path = "derse-derive" }

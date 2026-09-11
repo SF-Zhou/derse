@@ -15,18 +15,17 @@ Serde format: types implement derse's own `Serialize` and `Deserialize` traits.
 
 ## Installation
 
-To test the `0.2.0-alpha` prerelease, use:
+To use the stable `0.2` release series, add:
 
 ```toml
 [dependencies]
-derse = "=0.2.0-alpha"
+derse = "0.2"
 ```
 
-The exact requirement keeps testing on that prerelease. The runtime re-exports
-both derive macros and depends on the matching `derse-derive` version; consumers
-normally need only the `derse` dependency. See the
+The runtime re-exports both derive macros and depends on the exact matching
+`derse-derive` version; consumers normally need only the `derse` dependency. See the
 [release guide](https://github.com/SF-Zhou/derse/blob/main/docs/releasing.md)
-for version policy and stable-release upgrades.
+for version policy and prerelease selection.
 
 ## Serialize and deserialize
 

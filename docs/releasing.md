@@ -21,11 +21,11 @@ runtime. The renamed test fixture also uses a path-only dependency and must keep
 
 ## Prerelease progression
 
-The first unified release uses `0.2.0-alpha`; after testing, release
-`0.2.0`. Both names are valid SemVer versions. If another alpha is needed, use
-`0.2.0-alpha.1`, then `0.2.0-alpha.2`, and so on. A published version cannot be
-overwritten. Stable `0.2.0` is a new publication of both crates, not a rename of
-the alpha.
+The first unified release was `0.2.0-alpha`; its stable successor is `0.2.0`.
+Both names are valid SemVer versions. For future prerelease cycles,
+use the target version followed by `-alpha`, then `-alpha.1`, `-alpha.2`, and so
+on as needed. A published version cannot be overwritten. A stable release is a
+new publication of both crates; it does not rename the alpha.
 
 Cargo's [prerelease selection rules](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#pre-releases)
 matter to consumers:
@@ -37,10 +37,11 @@ matter to consumers:
 | `derse = "0.2.0-alpha"` | Can upgrade to later prereleases of `0.2.0` and compatible stable releases. |
 | `derse = "=0.2.0-alpha"` | Stays on that exact alpha until the requirement changes. |
 
-The README uses an exact version so alpha testing is reproducible. After the
-stable release, applications may use `derse = "0.2"` for compatible updates.
-The runtime always pins its own derive dependency exactly, including on stable
-releases. Because this is still a `0.x` library, moving from `0.1` to `0.2` is the
+The README uses `derse = "0.2"` so applications receive compatible stable
+updates. When documenting prerelease testing, use an exact requirement such as
+`derse = "=0.2.0-alpha"` to keep testing on that prerelease. The runtime always
+pins its own derive dependency exactly, including on stable releases. Because
+this is still a `0.x` library, moving from `0.1` to `0.2` is the
 appropriate Cargo version boundary for the source compatibility changes in the
 [changelog](../CHANGELOG.md). This does not itself change the wire format.
 
@@ -113,11 +114,11 @@ registry token secret is unnecessary.
 
 Once verification is complete and the release has been authorized, tag the
 reviewed release commit as `v<workspace.package.version>` and push the tag. For
-the alpha:
+`0.2.0`:
 
 ```sh
-git tag v0.2.0-alpha
-git push origin v0.2.0-alpha
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 The workflow runs `cargo publish --workspace --all-features --registry crates-io`

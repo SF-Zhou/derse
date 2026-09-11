@@ -8,6 +8,17 @@ checkout and do not indicate that a version has been published.
 
 ## Unreleased
 
+## 0.2.0
+
+### Changed
+
+- Promote `derse` and `derse-derive` from `0.2.0-alpha` to the stable `0.2.0`
+  release, keeping the runtime's derive dependency pinned to the exact matching
+  version. Update installation examples to use `derse = "0.2"`.
+- Runtime and derive source code, public APIs, and wire formats are unchanged
+  from `0.2.0-alpha`. The alpha release's compatibility notes below still apply
+  when upgrading from `0.1.x`.
+
 ## 0.2.0-alpha - 2026-09-11
 
 ### Added
