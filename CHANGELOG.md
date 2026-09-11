@@ -8,7 +8,7 @@ checkout and do not indicate that a version has been published.
 
 ## Unreleased
 
-## 0.2.0
+## 0.2.0 - 2026-09-11
 
 ### Changed
 
