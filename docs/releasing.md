@@ -93,24 +93,47 @@ can bypass the staged package and fail to find the unpublished macro version.
 `--registry crates-io` selects the upload registry but does not disable source
 replacement in Cargo configuration.
 
-## Publish and tag
+## Publish from a tag
 
-Once verification is complete and the release has been authorized, authenticate
-to crates.io through Cargo, then run from the same clean checkout:
+The [release workflow](../.github/workflows/release.yml) publishes both crates when
+a `v*` tag is pushed. Before the first automated release, configure
+[crates.io trusted publishing](https://crates.io/docs/trusted-publishing) for both
+`derse` and `derse-derive` with these values:
+
+| Setting | Value |
+| --- | --- |
+| Repository owner | `SF-Zhou` |
+| Repository name | `derse` |
+| Workflow filename | `release.yml` |
+| Environment | `release` |
+
+Configure the GitHub `release` environment to allow the release tags. The workflow
+uses a temporary crates.io token from `rust-lang/crates-io-auth-action`; a stored
+registry token secret is unnecessary.
+
+Once verification is complete and the release has been authorized, tag the
+reviewed release commit and push the tag. For the planned alpha:
 
 ```sh
 python3 scripts/version.py check
-cargo publish --workspace --all-features --registry crates-io
+git tag v0.2.0-alpha
+git push origin v0.2.0-alpha
 ```
+
+The workflow checks the shared version policy and requires the tag to equal
+`v<workspace.package.version>` before authentication. It then runs
+`cargo publish --workspace --all-features --registry crates-io` using stable Rust.
+Complete the preparation checks above before pushing the tag; the release job
+does not rerun the full test and Miri suites.
 
 Cargo publishes `derse-derive` before `derse`. Workspace publication is not an
 atomic registry operation: an interruption may leave only one crate published.
 Check which versions reached crates.io and, without changing their contents,
-retry only the missing package, for example `cargo publish -p derse --all-features
---registry crates-io`. Do not bump just one crate to recover a partial release.
+authenticate locally through Cargo and retry only the missing package, for
+example `cargo publish -p derse --all-features --registry crates-io`. Do not bump
+just one crate to recover a partial release.
 
-After both versions are available, record the release date, create the shared
-tag `v<VERSION>` for the release commit, and publish the matching release notes.
-Keep later changes under `Unreleased`. See the
+After both versions are available, record the release date and publish release
+notes for the existing tag. Keep later changes under `Unreleased`. See the
 [Cargo publishing guide](https://doc.rust-lang.org/cargo/reference/publishing.html)
 for registry behavior and the permanence of published versions.
