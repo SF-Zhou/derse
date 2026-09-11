@@ -38,7 +38,8 @@ checkout and do not indicate that a version has been published.
 - Check public API documentation and rehearse workspace publication in CI.
 - Simplify collection and tuple macros and generate array deserializers from a
   single length list, preserving encoding order and element trait requirements.
-  Arrays are constructed directly for lengths `0..=32`.
+  Derive the serialization limit from the same list. Arrays are constructed
+  directly for lengths `0..=32`.
 - Reject serialization of arrays longer than 32 elements at compile time,
   keeping the supported lengths consistent with deserialization.
 - Allow borrowed deserialized values to have lifetimes shorter than the input.
@@ -77,8 +78,7 @@ checkout and do not indicate that a version has been published.
 
 ### Compatibility notes
 
-- The version and documentation updates introduce no runtime or generated-code
-  changes. Moving to `0.2.0-alpha` requires consumers to opt into that prerelease;
+- Moving to `0.2.0-alpha` requires consumers to opt into that prerelease;
   existing `derse = "0.1"` requirements remain on the `0.1.x` series.
 - Public serialization and deserialization trait method signatures are unchanged.
   Existing calls and manual trait implementations keep the same signatures.

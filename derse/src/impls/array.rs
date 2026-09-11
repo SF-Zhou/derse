@@ -5,8 +5,6 @@
 
 use crate::*;
 
-const MAX_ARRAY_LENGTH: usize = 32;
-
 impl<T: Serialize, const N: usize> Serialize for [T; N] {
     fn serialize_to<S: Serializer>(&self, serializer: &mut S) -> Result<()> {
         // Keep the trait impl for every N: omitting unsupported impls would let
@@ -44,13 +42,19 @@ macro_rules! array_impls {
 
         array_impls!([$($index,)* $len,] $($rest),*);
     };
-    ([$($index:expr,)*]) => {};
+    ([$($index:expr,)*]) => {
+        // Each impl's array type checks that the list starts at zero and has no
+        // gaps. Derive the serialization limit from that same complete list.
+        const MAX_ARRAY_LENGTH: usize = {
+            let lengths: &[usize] = &[$($index,)*];
+            lengths.len() - 1
+        };
+    };
 }
 
 array_impls!([]
     0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
-    16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
-    MAX_ARRAY_LENGTH
+    16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32
 );
 
 #[cfg(test)]

@@ -190,5 +190,5 @@ so oversized values can truncate on narrower targets. The runtime currently
 requires Unix; cross-platform support is not implied by a fixed byte layout.
 
 See [the changelog](../CHANGELOG.md) for compatibility changes since the previous
-release, and [development notes](../CONTRIBUTING.md) for implementation issues
-that still need attention before publishing.
+release, and [the development guide](../CONTRIBUTING.md) for test commands and
+buffer memory-safety invariants.

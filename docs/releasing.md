@@ -63,12 +63,15 @@ RUSTDOCFLAGS="-D warnings -D missing_docs" cargo doc --workspace --all-features 
 cargo llvm-cov --workspace --release --all-features --fail-under-lines 100
 ```
 
+Also run the [buffer Miri checks](../CONTRIBUTING.md#buffer-memory-safety) and
+[big-endian IPv4 checks](../CONTRIBUTING.md#big-endian-ipv4-decoding). CI runs these
+in its dedicated `miri` job alongside the stable build and coverage checks.
+
 The version command updates the root package version, exact derive requirement,
 and README installation snippet. It neither commits nor publishes. Review the
-changes, resolve the outstanding issues listed in [development notes](../CONTRIBUTING.md),
-and prepare the changelog's release section. Keep `Unreleased` for later work;
-only record a publication date after the release actually occurs. Check README
-wording when changing from a prerelease to stable.
+changes and prepare the changelog's release section. Keep `Unreleased` for later
+work; only record a publication date after the release actually occurs. Check
+README wording when changing from a prerelease to stable.
 
 Commit the reviewed release state before the final packaging rehearsal:
 

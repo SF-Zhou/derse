@@ -157,6 +157,8 @@ dependency's `features` list, for example `features = ["full"]`.
 
 Run `cargo test --workspace --all-features` for the workspace tests and documentation
 examples. CI requires 100% Rust line coverage across the runtime and derive crates.
+It also runs Miri checks for buffer memory safety and IPv4 decoding on a big-endian
+target, with all features and strict provenance checking enabled.
 
 ## License
 
