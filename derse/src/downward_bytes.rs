@@ -1,4 +1,6 @@
 use super::{Result, Serializer};
+use std::mem::ManuallyDrop;
+use std::ptr::{self, NonNull};
 
 /// A reusable byte buffer optimized for prepending an encoding.
 ///
@@ -18,8 +20,37 @@ use super::{Result, Serializer};
 /// assert!(bytes.is_empty());
 /// assert_eq!(bytes.capacity(), 16);
 /// ```
-#[derive(Default)]
-pub struct DownwardBytes(Vec<u8>);
+pub struct DownwardBytes {
+    // Owns a Vec-compatible byte allocation, or a dangling pointer at capacity 0.
+    // Only the tail [capacity - length, capacity) must be initialized.
+    ptr: NonNull<u8>,
+    capacity: usize,
+    length: usize,
+}
+
+// SAFETY: The allocation is exclusively owned and moving it transfers ownership.
+unsafe impl Send for DownwardBytes {}
+// SAFETY: Shared access exposes only initialized bytes; all writes require &mut self.
+unsafe impl Sync for DownwardBytes {}
+
+impl Default for DownwardBytes {
+    fn default() -> Self {
+        Self {
+            ptr: NonNull::dangling(),
+            capacity: 0,
+            length: 0,
+        }
+    }
+}
+
+impl Drop for DownwardBytes {
+    fn drop(&mut self) {
+        // SAFETY: The pointer and capacity describe an exclusively owned Vec<u8>
+        // allocation (or the empty dangling state). Length 0 exposes no elements
+        // and lets Vec free the allocation without reading its uninitialized prefix.
+        unsafe { drop(Vec::from_raw_parts(self.ptr.as_ptr(), 0, self.capacity)) };
+    }
+}
 
 impl DownwardBytes {
     /// Creates an empty buffer without allocating.
@@ -29,18 +60,20 @@ impl DownwardBytes {
 
     /// Creates an empty buffer with space for `cap` encoded bytes.
     pub fn with_capacity(cap: usize) -> Self {
-        Self(Self::new_vec(cap, cap))
-    }
-
-    // The backing Vec's length is used as the start offset of the encoded tail,
-    // rather than the number of encoded bytes. Do not expose the Vec as data.
-    fn offset(&self) -> usize {
-        self.0.len()
+        // Reuse Vec's allocation, capacity-overflow and allocation-failure handling.
+        // It initializes no bytes. ManuallyDrop transfers the allocation to self.
+        let mut allocation = ManuallyDrop::new(Vec::<u8>::with_capacity(cap));
+        Self {
+            // SAFETY: Vec's pointer is non-null, including at capacity 0.
+            ptr: unsafe { NonNull::new_unchecked(allocation.as_mut_ptr()) },
+            capacity: allocation.capacity(),
+            length: 0,
+        }
     }
 
     /// Returns the number of encoded bytes, excluding unused prefix capacity.
     pub fn len(&self) -> usize {
-        self.capacity() - self.offset()
+        self.length
     }
 
     /// Returns whether the buffer contains no encoded bytes.
@@ -50,12 +83,12 @@ impl DownwardBytes {
 
     /// Returns the allocation's total capacity, including unused prefix space.
     pub fn capacity(&self) -> usize {
-        self.0.capacity()
+        self.capacity
     }
 
     /// Discards all encoded bytes while retaining the allocation for reuse.
     pub fn clear(&mut self) {
-        unsafe { self.0.set_len(self.capacity()) };
+        self.length = 0;
     }
 
     /// Clears the buffer and reduces its capacity if it exceeds `capacity`.
@@ -64,7 +97,7 @@ impl DownwardBytes {
     /// the old allocation is replaced with an empty buffer of the requested size.
     pub fn clear_and_shrink_to(&mut self, capacity: usize) {
         if self.capacity() <= capacity {
-            unsafe { self.0.set_len(self.capacity()) };
+            self.clear();
         } else {
             *self = Self::with_capacity(capacity);
         }
@@ -72,13 +105,13 @@ impl DownwardBytes {
 
     /// Borrows the encoded tail in wire order, excluding unused prefix space.
     pub fn as_slice(&self) -> &[u8] {
-        unsafe { std::slice::from_raw_parts(self.0.as_ptr().byte_add(self.offset()), self.len()) }
-    }
-
-    // Returns the destination tail used when moving bytes to a new allocation.
-    fn as_mut_slice(&mut self) -> &mut [u8] {
+        // SAFETY: The initialized tail lies within the allocation. The pointer is
+        // non-null even when empty, and the shared borrow prevents mutation.
         unsafe {
-            std::slice::from_raw_parts_mut(self.0.as_mut_ptr().byte_add(self.offset()), self.len())
+            std::slice::from_raw_parts(
+                self.ptr.as_ptr().add(self.capacity - self.length),
+                self.length,
+            )
         }
     }
 
@@ -88,13 +121,22 @@ impl DownwardBytes {
     /// result; its [`Serializer`] adapter returns `Ok(())` after this operation.
     pub fn prepend(&mut self, data: impl AsRef<[u8]>) {
         let buf = data.as_ref();
-        if self.offset() < buf.len() {
-            self.reserve(self.len() + buf.len());
-        }
+        // Both lengths are at most isize::MAX, so their sum fits in usize.
+        self.reserve(self.length + buf.len());
+        // Recompute after possible growth to keep less state live across allocation.
+        let length = self.length + buf.len();
 
-        let new_offset = self.offset() - buf.len();
-        self.0[new_offset..].copy_from_slice(buf);
-        self.0.truncate(new_offset)
+        // SAFETY: reserve provides enough prefix space. The exclusive borrow of
+        // self keeps the destination disjoint from the input. Publish the length
+        // only after the copy has initialized the new tail.
+        unsafe {
+            ptr::copy_nonoverlapping(
+                buf.as_ptr(),
+                self.ptr.as_ptr().add(self.capacity - length),
+                buf.len(),
+            );
+        }
+        self.length = length;
     }
 
     /// Ensures capacity for at least `size` total encoded bytes.
@@ -104,21 +146,28 @@ impl DownwardBytes {
     /// copied to the end of the new allocation.
     pub fn reserve(&mut self, size: usize) {
         if self.capacity() < size {
-            let new_cap = std::cmp::max(self.capacity() * 2, size);
-            let mut new_bytes = Self(Self::new_vec(new_cap, new_cap - self.len()));
-            new_bytes.as_mut_slice().copy_from_slice(self.as_ref());
-            self.0 = new_bytes.0;
+            self.grow(size);
         }
     }
 
-    // Allocates the backing storage and sets its encoded-tail offset. This
-    // representation uses Vec length as bookkeeping, not as an initialized-data
-    // count; callers must not read the unused prefix as encoded bytes.
-    #[allow(clippy::uninit_vec)]
-    fn new_vec(cap: usize, len: usize) -> Vec<u8> {
-        let mut vec = Vec::with_capacity(cap);
-        unsafe { vec.set_len(len) };
-        vec
+    // Keep allocation and copying out of prepend loops. Capacity is bounded by
+    // isize::MAX, so doubling fits usize; with_capacity checks the resulting size.
+    #[cold]
+    #[inline(never)]
+    fn grow(&mut self, size: usize) {
+        let new_cap = std::cmp::max(self.capacity * 2, size);
+        let mut new_bytes = Self::with_capacity(new_cap);
+        // SAFETY: The source tail is initialized, both ranges fit their distinct
+        // allocations, and new_bytes owns its allocation even before it is filled.
+        unsafe {
+            ptr::copy_nonoverlapping(
+                self.ptr.as_ptr().add(self.capacity - self.length),
+                new_bytes.ptr.as_ptr().add(new_bytes.capacity - self.length),
+                self.length,
+            );
+        }
+        new_bytes.length = self.length;
+        *self = new_bytes;
     }
 }
 

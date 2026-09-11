@@ -41,12 +41,13 @@ not recreate the workspace test environment.
 
 ## Big-endian IPv4 decoding
 
-Use Miri to run the IPv4 decoding tests on a big-endian target. This requires
-nightly Rust with the `miri` and `rust-src` components:
+CI runs the IPv4 decoding tests on a big-endian target in its dedicated Miri job.
+To run the same check locally, install nightly Rust with the `miri` and `rust-src`
+components:
 
 ```sh
 rustup toolchain install nightly --profile minimal --component miri --component rust-src
-MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test -p derse --lib --target s390x-unknown-linux-gnu ipv4_decode_
+MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test -p derse --lib --all-features --target s390x-unknown-linux-gnu ipv4_decode_
 ```
 
 These tests decode fixed input bytes. They check IP decoding without exercising
@@ -115,15 +116,35 @@ For collections, distinguish iteration order from sorted order. When changing
 serialization code, also check partial writes and reads, and cleanup after an
 element decoder fails or panics.
 
-## Existing implementation issues
+## Buffer memory safety
 
-The documentation review identified issues that version unification does not fix:
+`DownwardBytes` owns a raw byte pointer, capacity, and encoded length. Its size
+remains three machine words. The unused prefix needs no initialization or zeroing;
+only the tail `capacity - length..capacity` contains encoded bytes.
 
-- `DownwardBytes` uses a `Vec<u8>`'s length as the unused-prefix offset and calls
-  `set_len` before those bytes have been initialized. This conflicts with
-  [`Vec::set_len`'s initialization contract](https://doc.rust-lang.org/std/vec/struct.Vec.html#method.set_len).
-  Its storage representation needs a separate fix before publishing; comments
-  about only exposing the encoded tail do not establish memory safety.
+Keep these invariants when changing its storage or operations:
+
+- The pointer owns a `Vec<u8>`-compatible allocation, or is non-null and dangling
+  at zero capacity. The encoded length never exceeds capacity, and capacity never
+  exceeds `isize::MAX`.
+- Allocation and cleanup transfer ownership through temporary `Vec<u8>` values
+  whose length is always zero. They use the original allocation pointer and
+  actual capacity. No `set_len` call or initialized view of unused storage is
+  needed, and exactly one owner releases each allocation.
+- Prepending copies into unused space before publishing the new length. Shared
+  slices expose only the initialized tail; all writes require exclusive access.
+  Clearing changes only the encoded length.
+- Growth allocates a replacement, copies the existing initialized tail to its
+  new end, and then releases the old allocation. Retain the current capacity
+  policy, public interfaces, and wire order.
+
+CI runs the focused buffer tests under Miri with all features and strict
+provenance checking. With nightly Rust and the `miri` and `rust-src` components
+installed, run the same check locally:
+
+```sh
+MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test -p derse --test test_downward_bytes --all-features
+```
 
 Other current format limits, including unchecked integer narrowing and varint
 overflow bits, are described in the wire-format reference. The coverage threshold

@@ -12,6 +12,8 @@ checkout and do not indicate that a version has been published.
 
 - A workspace version tool and CI checks for synchronized package versions,
   exact internal dependencies, and the non-published test fixture.
+- A dedicated Miri CI job for buffer memory safety and IPv4 decoding on a
+  big-endian target, with all features and strict provenance checking enabled.
 - A wire-format reference, development guide, and workspace release procedure,
   including prerelease selection and recovery from a partially completed release.
 - Field attributes for derived deserialization: `#[derse(required)]`,
@@ -48,6 +50,11 @@ checkout and do not indicate that a version has been published.
 
 ### Fixed
 
+- Give `DownwardBytes` separate pointer, capacity, and initialized-tail length
+  fields instead of using `Vec::set_len` over uninitialized bytes. Transfer
+  allocation ownership through zero-length `Vec<u8>` values for allocation and
+  cleanup, without zeroing unused storage. Preserve the three-word buffer size,
+  public interfaces, encoded bytes, and capacity growth policy.
 - Return `Error::InvalidValue` with the message `duration overflow` when decoding
   a `Duration` whose nanosecond carry overflows the seconds count, instead of
   panicking. Preserve nanosecond normalization, the 12-byte encoding, public
@@ -89,12 +96,6 @@ checkout and do not indicate that a version has been published.
 - Correcting the `actual` field in `Error::DataIsShort` changes the diagnostic
   value and, when that error value is serialized, its bytes; the error type's
   layout is unchanged.
-
-### Known issues
-
-- The documentation review identified an existing `DownwardBytes` storage safety
-  issue that still needs a separate fix; see
-  [development notes](CONTRIBUTING.md#existing-implementation-issues).
 
 ## 0.1.34
 
