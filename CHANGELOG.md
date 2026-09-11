@@ -48,6 +48,10 @@ checkout and do not indicate that a version has been published.
 
 ### Fixed
 
+- Return `Error::InvalidValue` with the message `duration overflow` when decoding
+  a `Duration` whose nanosecond carry overflows the seconds count, instead of
+  panicking. Preserve nanosecond normalization, the 12-byte encoding, public
+  interfaces, and the existing read order and short-input behavior.
 - Decode IPv4 addresses correctly on big-endian hosts, including IPv4 socket
   addresses. Preserve serialized bytes, the single four-byte read, and existing
   short-input errors and cursor behavior.
@@ -88,8 +92,8 @@ checkout and do not indicate that a version has been published.
 
 ### Known issues
 
-- The documentation review identified existing `DownwardBytes` storage safety
-  and overflowing `Duration` input issues. These still need separate fixes; see
+- The documentation review identified an existing `DownwardBytes` storage safety
+  issue that still needs a separate fix; see
   [development notes](CONTRIBUTING.md#existing-implementation-issues).
 
 ## 0.1.34

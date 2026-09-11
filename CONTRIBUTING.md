@@ -124,8 +124,6 @@ The documentation review identified issues that version unification does not fix
   [`Vec::set_len`'s initialization contract](https://doc.rust-lang.org/std/vec/struct.Vec.html#method.set_len).
   Its storage representation needs a separate fix before publishing; comments
   about only exposing the encoded tail do not establish memory safety.
-- `Duration` deserialization can panic on overflowing input through
-  `Duration::new`; the decoder currently does not return an error for that case.
 
 Other current format limits, including unchecked integer narrowing and varint
 overflow bits, are described in the wire-format reference. The coverage threshold

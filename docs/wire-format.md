@@ -119,9 +119,12 @@ string tags or body-length prefixes of derived enums.
 | `Duration` | Seconds as little-endian `u64`, then subsecond nanoseconds as little-endian `u32`. |
 
 IP decoders reconstruct address octets independently of host endianness.
-`Duration` decoding calls `Duration::new`, which normalizes
-nanoseconds outside the subsecond range and can panic if the resulting seconds
-overflow. This is an existing implementation limitation, not an extra wire field.
+`Duration` occupies 12 bytes. Its decoder normalizes nanoseconds outside the
+subsecond range, carrying whole seconds into the seconds count. If that addition
+overflows, it returns `Error::InvalidValue` with the message `duration overflow`
+after consuming both fields. Decoding still reads eight bytes for seconds and
+then four bytes for nanoseconds; a short input produces the reader's existing
+error without rolling back earlier reads.
 
 ## Derived structs and enums
 
