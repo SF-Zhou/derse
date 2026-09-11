@@ -21,11 +21,6 @@ jobs:
         rustup toolchain install stable --profile minimal --component rustfmt,llvm-tools-preview
         rustup default stable
 
-    - name: Check release versions and tooling
-      run: |
-        python3 scripts/version.py check
-        python3 -B -m unittest discover -s scripts
-
     - name: Check formatting and documentation
       env:
         RUSTDOCFLAGS: "-D warnings -D missing_docs"

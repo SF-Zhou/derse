@@ -10,7 +10,7 @@ has not changed. Use one Git tag, `v<VERSION>`, for the pair.
 The runtime's dependency on `derse-derive` is an exact version requirement in
 `workspace.dependencies`. Generated code must run against the runtime version
 it was tested with. Cargo does not substitute `workspace.package.version` into
-dependency requirements, so the version tool updates both entries together.
+dependency requirements, so update both entries together when releasing.
 This is an intended use of
 [exact proc-macro dependencies](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#version-requirement-syntax).
 
@@ -46,17 +46,18 @@ appropriate Cargo version boundary for the source compatibility changes in the
 
 ## Prepare and verify
 
-Use a Unix host, Python 3.8+, and Cargo 1.90 or newer. Cargo 1.90 introduced
+Use a Unix host and Cargo 1.90 or newer. Cargo 1.90 introduced
 [workspace publishing](https://blog.rust-lang.org/2025/09/18/Rust-1.90.0/), which
 packages and verifies interdependent new versions together.
 
-Run these commands from the workspace root:
+Update `workspace.package.version` and the exact `derse-derive` requirement in
+the root `Cargo.toml`, along with the installation version in `README.md`. For
+example, promoting the alpha to stable sets the package version to `0.2.0` and
+the internal dependency requirement to `=0.2.0`.
+
+Then run these commands from the workspace root:
 
 ```sh
-# Use the intended next release; this example promotes the alpha to stable.
-python3 scripts/version.py set 0.2.0
-python3 scripts/version.py check
-python3 -B -m unittest discover -s scripts
 cargo fmt --all -- --check
 cargo test --workspace --all-features
 RUSTDOCFLAGS="-D warnings -D missing_docs" cargo doc --workspace --all-features --no-deps
@@ -67,11 +68,9 @@ Also run the [buffer Miri checks](../CONTRIBUTING.md#buffer-memory-safety) and
 [big-endian IPv4 checks](../CONTRIBUTING.md#big-endian-ipv4-decoding). CI runs these
 in its dedicated `miri` job alongside the stable build and coverage checks.
 
-The version command updates the root package version, exact derive requirement,
-and README installation snippet. It neither commits nor publishes. Review the
-changes and prepare the changelog's release section. Keep `Unreleased` for later
-work; only record a publication date after the release actually occurs. Check
-README wording when changing from a prerelease to stable.
+Review the changes and prepare the changelog's release section. Keep `Unreleased`
+for later work; only record a publication date after the release actually occurs.
+Check README wording when changing from a prerelease to stable.
 
 Commit the reviewed release state before the final packaging rehearsal:
 
@@ -112,17 +111,16 @@ uses a temporary crates.io token from `rust-lang/crates-io-auth-action`; a store
 registry token secret is unnecessary.
 
 Once verification is complete and the release has been authorized, tag the
-reviewed release commit and push the tag. For the planned alpha:
+reviewed release commit as `v<workspace.package.version>` and push the tag. For
+the planned alpha:
 
 ```sh
-python3 scripts/version.py check
 git tag v0.2.0-alpha
 git push origin v0.2.0-alpha
 ```
 
-The workflow checks the shared version policy and requires the tag to equal
-`v<workspace.package.version>` before authentication. It then runs
-`cargo publish --workspace --all-features --registry crates-io` using stable Rust.
+The workflow runs `cargo publish --workspace --all-features --registry crates-io`
+using stable Rust and a temporary registry token.
 Complete the preparation checks above before pushing the tag; the release job
 does not rerun the full test and Miri suites.
 

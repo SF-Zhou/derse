@@ -8,21 +8,17 @@
 | `derse-derive/src` | Input validation, generated implementations, and macro unit tests. |
 | `derse/tests` | Round trips, compatibility regressions, and compiler diagnostics. |
 | `tests/renamed` | A non-published crate that imports the runtime as `ds`. |
-| `scripts/version.py` | Checks and updates the shared release version. |
 
 Use a Unix host and the current stable Rust toolchain. The repository does not
 currently declare or test a minimum supported Rust version. Release commands
 using workspace publishing need Cargo 1.90 or newer; this tooling requirement is
-separate from the library's compiler requirements. The version script uses
-Python 3.8 or newer and has no third-party dependencies.
+separate from the library's compiler requirements.
 
 ## Local checks
 
 Run from the workspace root:
 
 ```sh
-python3 scripts/version.py check
-python3 -B -m unittest discover -s scripts
 cargo fmt --all -- --check
 cargo test --workspace --all-features
 RUSTDOCFLAGS="-D warnings -D missing_docs" cargo doc --workspace --all-features --no-deps

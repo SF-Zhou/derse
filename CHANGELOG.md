@@ -10,12 +10,10 @@ checkout and do not indicate that a version has been published.
 
 ### Added
 
-- A workspace version tool and CI checks for synchronized package versions,
-  exact internal dependencies, and the non-published test fixture.
 - A dedicated Miri CI job for buffer memory safety and IPv4 decoding on a
   big-endian target, with all features and strict provenance checking enabled.
-- A tag-triggered release workflow using crates.io trusted publishing, with
-  shared-version validation before publishing both crates in dependency order.
+- A tag-triggered release workflow using crates.io trusted publishing to publish
+  both crates in dependency order.
 - A wire-format reference, development guide, and workspace release procedure,
   including prerelease selection and recovery from a partially completed release.
 - Field attributes for derived deserialization: `#[derse(required)]`,

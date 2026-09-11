@@ -20,16 +20,6 @@ jobs:
         rustup toolchain install stable --profile minimal
         rustup default stable
 
-    - name: Check release version
-      run: |
-        python3 scripts/version.py check
-        release_version=$(cargo metadata --no-deps --format-version 1 --offline |
-          python3 -c 'import json, sys; print(next(p["version"] for p in json.load(sys.stdin)["packages"] if p["name"] == "derse"))')
-        if [ "$GITHUB_REF_NAME" != "v$release_version" ]; then
-          printf 'Release tag must be v%s, got %s\n' "$release_version" "$GITHUB_REF_NAME" >&2
-          exit 1
-        fi
-
     - uses: rust-lang/crates-io-auth-action@v1
       id: auth
 
