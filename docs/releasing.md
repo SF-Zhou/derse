@@ -21,7 +21,7 @@ runtime. The renamed test fixture also uses a path-only dependency and must keep
 
 ## Prerelease progression
 
-The first unified release is planned as `0.2.0-alpha`; after testing, release
+The first unified release uses `0.2.0-alpha`; after testing, release
 `0.2.0`. Both names are valid SemVer versions. If another alpha is needed, use
 `0.2.0-alpha.1`, then `0.2.0-alpha.2`, and so on. A published version cannot be
 overwritten. Stable `0.2.0` is a new publication of both crates, not a rename of
@@ -113,7 +113,7 @@ registry token secret is unnecessary.
 
 Once verification is complete and the release has been authorized, tag the
 reviewed release commit as `v<workspace.package.version>` and push the tag. For
-the planned alpha:
+the alpha:
 
 ```sh
 git tag v0.2.0-alpha

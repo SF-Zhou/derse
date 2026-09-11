@@ -2,11 +2,13 @@
 
 Notable changes to `derse` and `derse-derive` are recorded here, with the newest
 changes first. Tracking starts at `derse` 0.1.34 and `derse-derive` 0.1.15;
-earlier releases are not backfilled. Starting with the planned `0.2.0-alpha`,
+earlier releases are not backfilled. Starting with `0.2.0-alpha`,
 both crates share one release version. `Unreleased` entries describe the current
 checkout and do not indicate that a version has been published.
 
 ## Unreleased
+
+## 0.2.0-alpha
 
 ### Added
 

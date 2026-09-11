@@ -15,7 +15,7 @@ Serde format: types implement derse's own `Serialize` and `Deserialize` traits.
 
 ## Installation
 
-The version in this checkout is a prerelease target. Once it is published, use:
+To test the `0.2.0-alpha` prerelease, use:
 
 ```toml
 [dependencies]
