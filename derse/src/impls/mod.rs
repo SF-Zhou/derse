@@ -1,3 +1,8 @@
+//! Encodings for standard-library types and optional integrations.
+//!
+//! These implementations are part of the wire format: changing an iteration
+//! direction or adding a prefix changes bytes even when values still round-trip.
+
 mod array;
 mod collections;
 mod cow;

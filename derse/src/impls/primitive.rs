@@ -1,3 +1,10 @@
+//! Fixed-width little-endian scalars and transparent references.
+//!
+//! usize/isize always use eight bytes; their decoders cast without checking
+//! whether the value fits the target pointer width. Booleans accept only 0/1,
+//! chars validate a u32 scalar value, and unit values occupy no bytes. Options
+//! encode a boolean presence tag followed by the payload when present.
+
 use crate::*;
 
 macro_rules! primitive_impl {
@@ -13,6 +20,7 @@ macro_rules! primitive_impl {
             where
                 Self: Sized,
             {
+                // Deserializer::pop guarantees the exact width on success.
                 let front = buf.pop(std::mem::size_of::<Self>())?;
                 Ok(Self::from_le_bytes(front.as_ref().try_into().unwrap()))
             }

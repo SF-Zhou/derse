@@ -16,13 +16,56 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Use stable Rust
+      run: |
+        rustup toolchain install stable --profile minimal --component rustfmt,llvm-tools-preview
+        rustup default stable
+
+    - name: Check formatting and documentation
+      env:
+        RUSTDOCFLAGS: "-D warnings -D missing_docs"
+      run: |
+        cargo fmt --all -- --check
+        cargo doc --workspace --all-features --no-deps
+        cargo test --workspace --all-features --doc
+
+    - name: Rehearse workspace publication
+      run: cargo publish --workspace --all-features --registry crates-io --dry-run
+
     - name: Run tests
       run: |
-        cargo install cargo-llvm-cov
-        cargo llvm-cov --workspace --release --features full --fail-under-lines 100 --lcov --output-path lcov.info
+        cargo install cargo-llvm-cov --locked
+        cargo llvm-cov --workspace --release --all-features --fail-under-lines 100 --lcov --output-path lcov.info
 
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         slug: SF-Zhou/derse
+
+  miri:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MIRIFLAGS: "-Zmiri-strict-provenance"
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Miri
+      run: rustup toolchain install nightly --profile minimal --component miri,rust-src
+
+    - name: Prepare Miri sysroots
+      run: |
+        cargo +nightly miri setup
+        cargo +nightly miri setup --target s390x-unknown-linux-gnu
+        cargo +nightly miri setup --target i686-unknown-linux-gnu
+
+    - name: Check buffer memory safety
+      run: cargo +nightly miri test -p derse --test test_downward_bytes --all-features
+
+    - name: Check IPv4 decoding on a big-endian target
+      run: cargo +nightly miri test -p derse --lib --all-features --target s390x-unknown-linux-gnu ipv4_decode_
+
+    - name: Check input length overflow on a 32-bit target
+      run: cargo +nightly miri test -p derse --lib --all-features --release --target i686-unknown-linux-gnu combined_fragment_length_overflow_is_rejected

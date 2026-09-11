@@ -1,0 +1,30 @@
+name: Publish to crates.io
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Use stable Rust
+      run: |
+        rustup toolchain install stable --profile minimal
+        rustup default stable
+
+    - uses: rust-lang/crates-io-auth-action@v1
+      id: auth
+
+    - name: Publish workspace
+      # Cargo publishes derse-derive before derse and skips the test fixture.
+      run: cargo publish --workspace --all-features --registry crates-io
+      env:
+        CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}

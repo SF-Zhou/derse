@@ -1,8 +1,8 @@
 [package]
 name = "derse-renamed-tests"
-version = "0.0.0"
+version.workspace = true
 edition.workspace = true
 publish = false
 
 [dependencies]
-ds = { package = "derse", path = "../../derse" }
+async = { package = "derse", path = "../../derse" }

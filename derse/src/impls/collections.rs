@@ -1,9 +1,19 @@
+//! Collections start with a VarInt64 element count; map entries are key-value tuples.
+//!
+//! The writer prepends, so the selected traversal runs opposite to the final
+//! wire order. Vectors, lists, and heaps retain their iter() order. Heaps are not
+//! sorted for serialization. B-tree collections write descending keys; hash
+//! collections reverse their unspecified iteration order. Deserialization uses
+//! FromIterator, including its handling of duplicate keys or set elements.
+
 use crate::*;
 use std::cmp::Eq;
 use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque};
 use std::hash::Hash;
 
 macro_rules! seq_impl {
+    // The extra bounds are needed to construct a collection, not to read its
+    // existing elements during serialization. The method chain sets write order.
     ($ty:ident, [$($bound:path),*], $($method:ident()).+) => {
         impl<T> Serialize for $ty<T>
         where
@@ -38,6 +48,8 @@ seq_impl!(BTreeSet, [Ord], iter());
 seq_impl!(HashSet, [Eq, Hash], iter());
 
 macro_rules! map_impl {
+    // Tuple serialization reverses the writes within each entry, leaving the
+    // key before its value while reversing the order of entries as a whole.
     ($ty:ident, [$($bound:path),*]) => {
         impl<K, V> Serialize for $ty<K, V>
         where

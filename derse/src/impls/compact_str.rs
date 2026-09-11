@@ -1,3 +1,8 @@
+//! CompactString shares str's length-prefixed UTF-8 encoding.
+//!
+//! Decoding currently passes through &str before constructing the owned result,
+//! so a payload assembled across fragments is rejected like a borrowed string.
+
 use crate::{Deserialize, Serialize};
 
 impl Serialize for compact_str::CompactString {

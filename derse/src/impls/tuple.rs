@@ -1,3 +1,6 @@
+//! Tuples of arity 1 through 16 concatenate fields in declaration order.
+//! There is no length prefix or missing-field fallback; unit is handled separately.
+
 use crate::*;
 
 macro_rules! tuple_impls {
@@ -21,7 +24,8 @@ macro_rules! tuple_impls {
             }
         }
     };
-    // Extend the tuple one field at a time, prepending indices for reverse writes.
+    // Type parameters stay in declaration order for decoding. Field indices
+    // accumulate in reverse order because each serialization call prepends.
     (@build [$($name:ident,)*] [$($idx:tt,)*]; $next:ident:$next_idx:tt $(, $tail:ident:$tail_idx:tt)*) => {
         tuple_impls!(@impl [$($name,)* $next] [$next_idx $(, $idx)*]);
         tuple_impls!(@build [$($name,)* $next,] [$next_idx, $($idx,)*]; $($tail:$tail_idx),*);

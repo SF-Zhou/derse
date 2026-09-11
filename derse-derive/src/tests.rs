@@ -61,6 +61,26 @@ fn invalid_attributes_report_actionable_errors_for_both_derives() {
             "expected `,`",
         ),
         (
+            "struct Message(#[derse(recursive, recursive)] u8);",
+            "duplicate recursive field attribute",
+        ),
+        (
+            "struct Message(#[derse(recursive)] #[derse(recursive)] u8);",
+            "duplicate recursive field attribute",
+        ),
+        (
+            "struct Message(#[derse(recursive = true)] u8);",
+            "expected `,`",
+        ),
+        (
+            "struct Message(#[derse(recursive(value))] u8);",
+            "expected `,`",
+        ),
+        (
+            "#[derse(recursive)] struct Message(u8);",
+            "derse attributes are only supported on fields",
+        ),
+        (
             "union Message { value: u8 }",
             "only structs and enums are supported",
         ),
@@ -89,18 +109,18 @@ fn field_policies_distinguish_required_trait_and_function_defaults() {
     };
     let fields = validate(&input).unwrap().fields;
     assert!(matches!(
-        default_policy(fields[0]).unwrap(),
+        field_policy(fields[0]).unwrap().default,
         DefaultPolicy::Trait
     ));
     assert!(matches!(
-        default_policy(fields[1]).unwrap(),
+        field_policy(fields[1]).unwrap().default,
         DefaultPolicy::Trait
     ));
     assert!(matches!(
-        default_policy(fields[2]).unwrap(),
+        field_policy(fields[2]).unwrap().default,
         DefaultPolicy::Required
     ));
-    let DefaultPolicy::Function(path) = default_policy(fields[3]).unwrap() else {
+    let DefaultPolicy::Function(path) = field_policy(fields[3]).unwrap().default else {
         panic!("expected a custom function");
     };
     assert_eq!(compact(path), "crate::defaults::value");
@@ -128,7 +148,14 @@ fn generated_names_avoid_raw_identifiers_higher_ranked_lifetimes_and_default_pat
 #[test]
 fn generic_usage_includes_type_const_and_lifetime_parameters() {
     let input: DeriveInput = parse_quote! { struct Message<'a, r#Type, const N: usize>; };
-    for source in ["Type", "Vec<Type>", "[u8; N]", "&'a str"] {
+    for source in [
+        "Type",
+        "Vec<Type>",
+        "[u8; N]",
+        "&'a str",
+        "<Self as Provider>::Value",
+        "Self::Value",
+    ] {
         assert!(
             uses_generics(&syn::parse_str(source).unwrap(), &input.generics),
             "{source}"
@@ -140,130 +167,46 @@ fn generic_usage_includes_type_const_and_lifetime_parameters() {
             "{source}"
         );
     }
-}
-
-#[test]
-fn explicit_bounds_include_where_clauses_without_bounding_associated_types() {
-    let input: DeriveInput = parse_quote! {
-        struct Message<'a, 'b: 'a, T: 'a + Serialize, U, const N: usize>
-        where
-            T: Deserialize<'a> + Default,
-            U: Serialize,
-            T::Value: Default,
-            'a: 'b;
-    };
-    assert_eq!(bounds_for(&input.generics, &parse_quote!(T)).len(), 4);
-    assert_eq!(bounds_for(&input.generics, &parse_quote!(U)).len(), 1);
-    assert!(bounds_for(&input.generics, &parse_quote!(Missing)).is_empty());
-
-    for (source, trait_name, lifetime, expected) in [
-        ("T", "Serialize", None, true),
-        ("(T, U)", "Serialize", None, true),
-        ("(T, U)", "Default", None, false),
-        ("T", "Deserialize", Some("'a"), true),
-        ("T", "Deserialize", Some("'b"), false),
-        ("&'b T", "Deserialize", Some("'a"), false),
-        ("&'a T", "Deserialize", Some("'a"), true),
-        ("T::Value", "Serialize", None, false),
-        ("<T as Provider>::Value", "Serialize", None, false),
-        ("Vec<T>", "Serialize", None, true),
-        ("[T; N]", "Serialize", None, false),
-        ("u8", "Serialize", None, false),
-    ] {
-        let lifetime = lifetime.map(|value| syn::parse_str::<Lifetime>(value).unwrap());
-        assert_eq!(
-            explicitly_bounded(
-                &syn::parse_str(source).unwrap(),
-                &input.generics,
-                trait_name,
-                lifetime.as_ref()
-            ),
-            expected,
-            "{source}: {trait_name}",
-        );
-    }
-}
-
-#[test]
-fn input_lifetime_comes_only_from_non_higher_ranked_deserialize_bounds() {
-    for source in [
-        "struct Message<'a, T: Deserialize<'a>>(T);",
-        "struct Message<'a, T>(T) where T: derse::Deserialize<'a>;",
-    ] {
-        let input: DeriveInput = syn::parse_str(source).unwrap();
-        assert_eq!(
-            existing_input_lifetime(&input.generics)
-                .unwrap()
-                .to_string(),
-            "'a"
-        );
-    }
-    for source in [
-        "struct Message<'a, T: for<'b> Deserialize<'b>>(T);",
-        "struct Message<T: Deserialize<'static>>(T);",
-        "struct Message<'a, T: 'a + Serialize>(T);",
-        "struct Message<T>(T);",
-    ] {
-        let input: DeriveInput = syn::parse_str(source).unwrap();
-        assert!(
-            existing_input_lifetime(&input.generics).is_none(),
-            "{source}"
-        );
-    }
-    for source in [
-        "'static",
-        "Serialize",
-        "Deserialize",
-        "Deserialize<u8>",
-        "for<'a> Deserialize<'a>",
-    ] {
-        let bound: syn::TypeParamBound = syn::parse_str(source).unwrap();
-        assert!(deserialize_lifetime(&bound).is_none(), "{source}");
-    }
-    let input: DeriveInput = parse_quote! { struct Message<T: for<'a> Deserialize<'a>>(T); };
-    assert!(explicitly_bounded(
-        &parse_quote!(T),
-        &input.generics,
-        "Deserialize",
-        Some(&parse_quote!('__input))
-    ));
+    assert!(!uses_generics(&parse_quote!(Self), &Generics::default()));
 }
 
 #[test]
 fn recursion_recognizes_self_paths_without_confusing_projections_and_other_modules() {
     let name = parse_quote!(Node);
-    for source in [
-        "Self",
-        "Node<T>",
-        "crate::tree::Node<T>",
-        "self::Node<T>",
-        "super::Node<T>",
-        "Vec<Node<T>>",
-    ] {
+    let generics = parse_quote!(<T, U>);
+    for source in ["Self", "Node<T>", "Vec<Node<T>>"] {
         assert!(
-            contains_self(&syn::parse_str(source).unwrap(), &name),
+            contains_self(&syn::parse_str(source).unwrap(), &name, &generics),
             "{source}"
         );
     }
     for source in [
         "T::Node",
+        "crate::tree::Node<T>",
+        "self::Node<T>",
+        "super::Node<T>",
+        "<Self as Provider>::Value",
+        "Self::Value",
+        "Self::Value<Node<T>>",
+        "T::Value<Self>",
+        "<Provider<Self> as Trait>::Output",
         "other::Node<T>",
         "<T as Provider>::Node",
         "Vec<T>",
         "u8",
     ] {
         assert!(
-            !contains_self(&syn::parse_str(source).unwrap(), &name),
+            !contains_self(&syn::parse_str(source).unwrap(), &name, &generics),
             "{source}"
         );
     }
     let ty: Type = parse_quote! { (T, Vec<Node<T>>, [u8; 3], Option<(Node<T>, Box<U>)>) };
-    let parts: Vec<_> = nonrecursive_types(&ty, &name)
+    let parts: Vec<_> = nonrecursive_types(&ty, &name, &generics)
         .into_iter()
         .map(compact)
         .collect();
     assert_eq!(parts, ["T", "[u8;3]", "Box<U>"]);
-    assert!(nonrecursive_types(&parse_quote!(Self), &name).is_empty());
+    assert!(nonrecursive_types(&parse_quote!(Self), &name, &generics).is_empty());
 }
 
 #[test]
@@ -280,17 +223,17 @@ fn expansions_preserve_struct_and_enum_shapes_and_use_resolved_trait_paths() {
         assert_eq!(serialization.len(), 1);
         assert_eq!(
             compact(&serialization[0].trait_.as_ref().unwrap().1),
-            "::derse::Serialize"
+            "::r#derse::Serialize"
         );
         let deserialization = implementations(expand_deserialize(&input).unwrap());
         assert_eq!(deserialization.len(), 2);
         assert_eq!(
             compact(&deserialization[0].trait_.as_ref().unwrap().1),
-            "::derse::DetailedDeserialize<'__derse_de>"
+            "::r#derse::DetailedDeserialize<'__derse_de>"
         );
         assert_eq!(
             compact(&deserialization[1].trait_.as_ref().unwrap().1),
-            "::derse::Deserialize<'__derse_de>"
+            "::r#derse::Deserialize<'__derse_de>"
         );
         assert_eq!(compact(&serialization[0].self_ty), input.ident.to_string());
         assert_eq!(
@@ -316,15 +259,57 @@ fn recursive_expansions_bound_nonrecursive_parts_and_preserve_existing_bounds() 
         }
     };
     let serialization = implementations(expand_serialize(&input).unwrap());
-    assert_eq!(
-        compact(serialization[0].generics.where_clause.as_ref().unwrap()),
-        "whereT:::derse::Serialize"
-    );
+    let predicates = &serialization[0]
+        .generics
+        .where_clause
+        .as_ref()
+        .unwrap()
+        .predicates;
+    assert_eq!(predicates.len(), 2);
+    assert_eq!(compact(&predicates[0]), "T:::r#derse::Serialize");
+    assert!(compact(&predicates[1]).contains("&'__derse_borrowU,"));
     let deserialization = implementations(expand_deserialize(&input).unwrap());
+    let predicates = &deserialization[0]
+        .generics
+        .where_clause
+        .as_ref()
+        .unwrap()
+        .predicates;
+    assert_eq!(predicates.len(), 3);
     assert_eq!(
-        compact(deserialization[0].generics.where_clause.as_ref().unwrap()),
-        "whereT:::derse::Deserialize<'__derse_de>"
+        compact(&predicates[0]),
+        "T:::r#derse::Deserialize<'__derse_de>"
     );
+    assert!(compact(&predicates[1]).starts_with("(U,"));
+    assert!(compact(&predicates[2]).ends_with(":::core::default::Default"));
+}
+
+#[test]
+fn recursive_fields_skip_serialization_bounds_and_keep_their_default_policy() {
+    let input: DeriveInput = parse_quote! {
+        struct Node<T> {
+            #[derse(recursive)]
+            children: Children<T>,
+            #[derse(required, recursive)]
+            required: Required<T>,
+            #[derse(recursive)]
+            #[derse(default = "fallback")]
+            custom: Custom<T>,
+            #[derse(recursive, default)]
+            explicit: Children<T>,
+        }
+    };
+    let validated = validate(&input).unwrap();
+    assert!(validated.policies.iter().all(|policy| policy.recursive));
+    let serialization = implementations(expand_serialize(&input).unwrap());
+    assert!(serialization[0].generics.where_clause.is_none());
+    let deserialization = implementations(expand_deserialize(&input).unwrap());
+    let clause = compact(deserialization[0].generics.where_clause.as_ref().unwrap());
+    assert_eq!(clause.matches(":::core::default::Default").count(), 2);
+    assert!(!clause.contains("Deserialize"));
+    let body = compact(&deserialization[0]);
+    assert_eq!(body.matches("::r#derse::Deserializer::is_empty").count(), 3);
+    assert!(body.contains("fallback()"));
 }
 
 #[test]
@@ -340,28 +325,28 @@ fn inferred_bounds_are_field_specific_and_default_requirements_follow_policy() {
     };
     let serialization = implementations(expand_serialize(&input).unwrap());
     let serialized = compact(serialization[0].generics.where_clause.as_ref().unwrap());
-    assert_eq!(serialized.matches("::derse::Serialize").count(), 3);
+    assert_eq!(serialized.matches("::r#derse::Serialize").count(), 3);
     for index in 0..3 {
         assert!(serialized.contains(&format!("PhantomData<[();{index}usize]>")));
     }
     let deserialization = implementations(expand_deserialize(&input).unwrap());
     let deserialized = compact(deserialization[0].generics.where_clause.as_ref().unwrap());
-    assert_eq!(deserialized.matches("::derse::Deserialize").count(), 3);
+    assert_eq!(deserialized.matches("::r#derse::Deserialize").count(), 3);
     assert_eq!(deserialized.matches("::core::default::Default").count(), 1);
     assert!(deserialized
         .contains("(T,::core::marker::PhantomData<[();2usize]>):::core::default::Default"));
     let body = compact(&deserialization[0]);
     assert!(body.contains("fallback()"));
-    assert_eq!(body.matches("::derse::Deserializer::is_empty").count(), 2);
+    assert_eq!(body.matches("::r#derse::Deserializer::is_empty").count(), 2);
 }
 
 #[test]
-fn expansion_reuses_an_explicit_input_lifetime() {
+fn expansion_preserves_explicit_bounds_with_an_independent_input_lifetime() {
     let input: DeriveInput = parse_quote! {
         struct Message<'input, T: Deserialize<'input> + Default>(T, &'input str);
     };
     for implementation in implementations(expand_deserialize(&input).unwrap()) {
-        assert_eq!(implementation.generics.lifetimes().count(), 1);
+        assert_eq!(implementation.generics.lifetimes().count(), 2);
         assert_eq!(
             implementation
                 .generics
@@ -370,9 +355,10 @@ fn expansion_reuses_an_explicit_input_lifetime() {
                 .unwrap()
                 .lifetime
                 .to_string(),
-            "'input"
+            "'__derse_de"
         );
-        assert!(compact(&implementation.trait_.unwrap().1).contains("<'input>"));
+        assert!(compact(&implementation.generics).contains("T:Deserialize<'input>+Default"));
+        assert!(compact(&implementation.trait_.unwrap().1).contains("<'__derse_de>"));
     }
 }
 

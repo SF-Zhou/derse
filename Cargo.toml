@@ -7,9 +7,15 @@ members = [
 resolver = "2"
 
 [workspace.package]
+version = "0.2.0-alpha"
 authors = ["SF-Zhou <sfzhou.scut@gmail.com>"]
 edition = "2021"
 homepage = "https://github.com/SF-Zhou/derse"
 repository = "https://github.com/SF-Zhou/derse"
 description = "A simple binary serialization protocol for Rust."
 license = "MIT OR Apache-2.0"
+readme = "README.md"
+
+[workspace.dependencies]
+# Generated code and its runtime are released and tested as one version.
+derse-derive = { version = "=0.2.0-alpha", path = "derse-derive" }

@@ -1,3 +1,8 @@
+//! C strings encode as length-prefixed bytes including their terminating NUL.
+//!
+//! Decoding rejects a missing terminator or interior NUL. The borrowed form
+//! inherits &[u8]'s contiguous-payload requirement; CString can read fragments.
+
 use crate::*;
 use std::ffi::{CStr, CString};
 

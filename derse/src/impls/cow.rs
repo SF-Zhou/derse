@@ -1,3 +1,9 @@
+//! Cow encodes its contents without an ownership tag.
+//!
+//! The str and [u8] decoders preserve the borrow-or-own choice made by pop().
+//! The generic `Cow<T>` implementation instead decodes an owned T, so the Cow's
+//! lifetime need not be tied to the input; T may still contain input borrows.
+
 use crate::*;
 use std::borrow::Cow;
 

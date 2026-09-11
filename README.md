@@ -5,69 +5,110 @@
 [![codecov](https://codecov.io/gh/SF-Zhou/derse/graph/badge.svg?token=8I6CQT5VJ5)](https://codecov.io/gh/SF-Zhou/derse)
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FSF-Zhou%2Fderse.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2FSF-Zhou%2Fderse?ref=badge_shield)
 
-A simple binary serialization protocol for Rust.
+derse is a binary serialization library for Rust. It provides derive macros,
+a buffer that grows by prepending bytes, and deserializers for contiguous or
+fragmented input. Derived structs and enums have length-delimited bodies so
+readers can skip added trailing fields.
 
-## Usage
+The runtime requires `std` and currently builds on Unix targets. It is not a
+Serde format: types implement derse's own `Serialize` and `Deserialize` traits.
 
-To use this library, add the following to your Cargo.toml:
+## Installation
+
+The version in this checkout is a prerelease target. Once it is published, use:
 
 ```toml
 [dependencies]
-derse = "0.1"
+derse = "=0.2.0-alpha"
 ```
 
-Then, you can import and use the components as follows:
+The exact requirement keeps testing on that prerelease. The runtime re-exports
+both derive macros and depends on the matching `derse-derive` version; consumers
+normally need only the `derse` dependency. See the
+[release guide](https://github.com/SF-Zhou/derse/blob/main/docs/releasing.md)
+for version policy and stable-release upgrades.
+
+## Serialize and deserialize
 
 ```rust
 use derse::{Deserialize, DownwardBytes, Serialize};
 
-// 1. serialization for basic types.
-let ser = "hello world!";
-let bytes = ser.serialize::<DownwardBytes>().unwrap();
-let der = String::deserialize(&bytes[..]).unwrap();
-assert_eq!(ser, der);
-
-// 2. serialization for custom structs.
-#[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
-pub struct Demo {
-    a: i32,
-    b: String,
-    c: Vec<String>,
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+struct Message {
+    id: u32,
+    text: String,
 }
-let ser = Demo::default();
-let bytes = ser.serialize::<DownwardBytes>().unwrap();
-let der = Demo::deserialize(&bytes[..]).unwrap();
-assert_eq!(ser, der);
+
+let message = Message { id: 7, text: "hello".into() };
+let bytes = message.serialize::<DownwardBytes>().unwrap();
+let decoded = Message::deserialize(bytes.as_slice()).unwrap();
+assert_eq!(decoded, message);
+
+// A usize serializer counts the encoded bytes without allocating a buffer.
+let size = message.serialize::<usize>().unwrap();
+assert_eq!(size, bytes.len());
 ```
 
+`Serializer::prepend` puts each write before the existing output. Manual
+implementations therefore write the last field first. `serialize_to` can reuse
+a buffer; call `clear()` first when starting an independent message.
 
-Fixed-size arrays `[T; N]` support serialization and deserialization for lengths
-`0..=32`. Serializing a longer array fails at compile time during code generation
-(`cargo build`); `cargo check` alone does not evaluate this assertion.
-Deserialization constructs the array directly, without an intermediate buffer.
-Their encoding contains the elements in order, without a length prefix.
+`deserialize` reads one value and allows unused input after it. To read several
+values or check for trailing bytes, keep a mutable input slice and use
+`deserialize_from`.
 
-## Derived types and compatibility
+## Borrowed and fragmented input
 
-The derive macros support named, tuple, and unit structs and enum variants, as
-well as generic fields and borrowed data. Trait bounds are inferred from the
-fields; marker types such as `PhantomData<T>` do not require `T` to be serializable.
+`&str`, `&[u8]`, `&CStr`, `&OsStr`, and `&Path` borrow their payload from the input.
+Use `BytesArray` to read a list of byte slices without concatenating the entire
+message first. A read contained in its current fragment can borrow; a read
+crossing fragments allocates an owned buffer.
 
-Each derived value has a byte-length prefix. Fields are encoded in declaration
-order, and enum variants are identified by name. Keep existing field order and
-encodings unchanged when evolving a type: new readers fill in missing trailing
-fields, and old readers skip unknown trailing fields. Renaming an enum variant
-changes its encoded tag.
+```rust
+use derse::{BytesArray, Deserialize};
+use std::borrow::Cow;
 
-By default, every missing trailing field uses `Default::default()`. Field
-attributes can require decoding or supply a different fallback:
+let fragments: &[&[u8]] = &[b"\x05he", b"llo"];
+let text = Cow::<str>::deserialize(BytesArray::new(fragments)).unwrap();
+assert_eq!(text, "hello");
+assert!(matches!(text, Cow::Owned(_)));
+```
+
+A borrowed target cannot accept an owned intermediate payload and returns an
+error in that case. `String`, `Vec<u8>`, `Cow<str>`, and `Cow<[u8]>` can accept
+fragmented payloads. `CompactString` currently decodes through `&str`, so its
+payload must be borrowable too.
+
+## Derive and schema changes
+
+The macros support named, tuple, and unit structs and enum variants, including
+generic and borrowed fields. They infer complete field trait bounds and preserve
+existing bounds. A `PhantomData<T>` field does not require `T` to be serializable.
+Unions are unsupported.
+
+Recursion written as `Self` or the unqualified type name is detected automatically.
+For generic recursion hidden behind a type alias or qualified module path, add
+`#[derse(recursive)]` to the field and supply the required generic parameter
+bounds yourself. This skips automatic serialization and deserialization bounds
+for that whole field, including any nonrecursive parts. Its missing-field policy
+and `Default` requirement are unchanged; the marker can be combined with any one
+policy below. Existing recursive aliases that relied on explicit parameter bounds
+to suppress field inference now need this marker. The
+[derive crate documentation](https://github.com/SF-Zhou/derse/blob/main/derse-derive/src/lib.rs)
+includes an example; run `cargo doc` to read it locally.
+
+Derived values encode fields in declaration order. Enum variants use their Rust
+identifier spelling as a string tag, rather than a numeric discriminant.
+Changing a field's position or encoding, or renaming a variant, changes the wire
+format. Field names and Rust type names are not encoded.
+
+Missing trailing fields use `Default::default()` unless a field selects another
+policy:
 
 ```rust
 use derse::{Deserialize, Serialize};
 
-fn default_port() -> u16 {
-    8080
-}
+fn default_port() -> u16 { 8080 }
 
 #[derive(Serialize, Deserialize)]
 struct Config {
@@ -79,23 +120,60 @@ struct Config {
 }
 ```
 
-`required` always calls the field's deserializer, which reports missing or
-invalid data according to that type's encoding. A custom default function takes
-no arguments and returns the field type. Both options remove the field's
-`Default` requirement. Defaults apply only when the enclosing value's remaining
-body is empty; a partially present field still reports a decoding error.
+| Field attribute | Behavior when the enclosing body is empty |
+| --- | --- |
+| Omitted, or `#[derse(default)]` | Use the field type's `Default` implementation. |
+| `#[derse(required)]` | Call the field decoder even on empty input. |
+| `#[derse(default = "path::function")]` | Call a function taking no arguments and returning the field type. |
 
-## Tests and coverage
+Required fields and custom defaults remove the `Default` bound. A required
+zero-byte type can still decode from empty input. Defaults never recover a
+partially present or invalid field. These attributes affect deserialization
+only; they do not omit serialized fields.
 
-Run all workspace tests and the same coverage check used by CI:
+Appending fields with suitable defaults lets new readers accept old messages.
+Old readers skip unrecognized bytes at the end of a derived body. New enum
+variants remain errors for readers that do not know their tags. Compatibility
+still depends on preserving the meaning and encoding of existing fields.
 
-```sh
-cargo test --workspace --all-features
-cargo install cargo-llvm-cov
-cargo llvm-cov --workspace --release --features full --fail-under-lines 100
-```
+## Types and features
 
-CI requires 100% line coverage across the runtime and derive crates.
+Built-in implementations cover primitive values, strings and byte slices,
+tuples, arrays, common collections, paths, C strings, socket addresses, and
+durations. See the
+[wire format](https://github.com/SF-Zhou/derse/blob/main/docs/wire-format.md)
+for their exact layouts and current limitations.
+
+Arrays `[T; N]` support lengths `0..=32` and have no length prefix. Deserialization
+constructs the array directly. Serializing a longer array fails during code
+generation (`cargo build`); `cargo check` alone does not evaluate this assertion.
+Byte slices and `Vec<u8>` have a length prefix, unlike fixed-size byte arrays.
+
+| Feature | Additional implementation |
+| --- | --- |
+| `compact_str` | `compact_str::CompactString` |
+| `tinyvec` | `tinyvec::TinyVec` |
+| `full` | Both optional integrations |
+
+No optional integrations are enabled by default. Enable a feature through the
+dependency's `features` list, for example `features = ["full"]`.
+
+## Documentation and development
+
+- [API documentation](https://docs.rs/derse) (latest published version)
+- [Wire format](https://github.com/SF-Zhou/derse/blob/main/docs/wire-format.md)
+- [Development and testing](https://github.com/SF-Zhou/derse/blob/main/CONTRIBUTING.md)
+- [Release guide](https://github.com/SF-Zhou/derse/blob/main/docs/releasing.md)
+- [Changelog](https://github.com/SF-Zhou/derse/blob/main/CHANGELOG.md)
+
+Run `cargo test --workspace --all-features` for the workspace tests and documentation
+examples. CI requires 100% Rust line coverage across the runtime and derive crates.
+It also runs Miri checks for buffer memory safety, IPv4 decoding on a big-endian
+target, and input-length overflow on a 32-bit target, with all features and strict
+provenance checking enabled.
 
 ## License
-[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FSF-Zhou%2Fderse.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2FSF-Zhou%2Fderse?ref=badge_large)
+
+Licensed under either the [MIT license](https://github.com/SF-Zhou/derse/blob/main/LICENSE-MIT)
+or the [Apache License, Version 2.0](https://github.com/SF-Zhou/derse/blob/main/LICENSE-APACHE),
+at your option.

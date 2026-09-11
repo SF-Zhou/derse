@@ -2,40 +2,44 @@ use std::borrow::Cow;
 
 use super::{Error, Result};
 
-/// A trait for deserializing data from a byte slice.
+/// A forward-only input cursor that can lend bytes for the lifetime `'a`.
+///
+/// A successful [`pop`](Self::pop) or [`advance`](Self::advance) removes exactly
+/// the requested number of bytes from the front. Zero-length operations must
+/// succeed even at the end of input. Returned data must respect any logical
+/// boundary of the cursor, including a view created by `advance`.
+///
+/// `&[u8]` always lends contiguous bytes. [`BytesArray`](crate::BytesArray) reads
+/// across multiple slices and may allocate when `pop` spans a fragment boundary.
+/// Implementations should report [`Error::DataIsShort`] when there are too few
+/// bytes. The built-in cursors leave their position unchanged on that error.
 pub trait Deserializer<'a> {
-    /// Checks if the deserializer is empty.
+    /// Returns whether no bytes remain in this cursor's logical view.
     fn is_empty(&self) -> bool;
 
-    /// Advances the deserializer by the specified length.
+    /// Removes the next `len` bytes and returns a cursor limited to those bytes.
     ///
-    /// # Errors
-    ///
-    /// Returns an error if the length to advance exceeds the available data.
+    /// Reading the returned cursor does not move this cursor further. Derived
+    /// decoders use this operation to prevent a field from reading beyond its
+    /// containing value, while the outer cursor already points to the next value.
     fn advance(&mut self, len: usize) -> Result<Self>
     where
         Self: Sized;
 
-    /// Pops the specified length of data from the deserializer.
+    /// Removes and returns exactly the next `len` bytes.
     ///
-    /// # Errors
-    ///
-    /// Returns an error if the length to pop exceeds the available data.
+    /// Return `Cow::Borrowed` when the bytes can be lent for `'a`, or `Cow::Owned`
+    /// when they must be assembled into a contiguous allocation. Decoders for
+    /// borrowed output types can reject an owned result.
     fn pop(&mut self, len: usize) -> Result<Cow<'a, [u8]>>;
 }
 
-/// Implements the `Deserializer` trait for a byte slice.
+/// Reads borrowed bytes by replacing the slice with its unconsumed suffix.
 impl<'a> Deserializer<'a> for &'a [u8] {
-    /// Checks if the byte slice is empty.
     fn is_empty(&self) -> bool {
         <[u8]>::is_empty(self)
     }
 
-    /// Advances the byte slice by the specified length.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the length to advance exceeds the available data.
     fn advance(&mut self, len: usize) -> Result<Self>
     where
         Self: Sized,
@@ -52,11 +56,6 @@ impl<'a> Deserializer<'a> for &'a [u8] {
         }
     }
 
-    /// Pops the specified length of data from the byte slice.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the length to pop exceeds the available data.
     fn pop(&mut self, len: usize) -> Result<Cow<'a, [u8]>> {
         if len <= self.len() {
             let (front, back) = self.split_at(len);

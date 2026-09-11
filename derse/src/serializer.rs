@@ -1,27 +1,45 @@
 use super::Result;
 
-/// A trait for serializing data into a byte buffer.
+/// A destination that accepts bytes at the front of its current output.
+///
+/// Each [`prepend`](Self::prepend) preserves the order of its argument's bytes
+/// and places them before all previous writes. [`len`](Self::len) reports the
+/// total encoded byte count, including for destinations that only count bytes.
+///
+/// [`DownwardBytes`](crate::DownwardBytes) stores the output. `usize` implements
+/// this trait as a counter, allowing [`Serialize::serialize`](crate::Serialize::serialize)
+/// to measure an encoding without allocating an output buffer:
+///
+/// ```
+/// use derse::{DownwardBytes, Serialize};
+///
+/// let value = (7u16, "hello");
+/// let length: usize = value.serialize()?;
+/// let bytes: DownwardBytes = value.serialize()?;
+/// assert_eq!(length, bytes.len());
+/// # Ok::<(), derse::Error>(())
+/// ```
 pub trait Serializer {
-    /// Prepends data to the buffer.
+    /// Places `data` before the existing output and increases its length.
     ///
-    /// # Arguments
-    ///
-    /// * `data` - The data to prepend.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the operation fails.
+    /// The data is consumed during this call; the writer cannot retain the
+    /// borrowed argument. Custom writers may report a write error. No rollback
+    /// guarantee is imposed on a failed write.
     fn prepend(&mut self, data: impl AsRef<[u8]>) -> Result<()>;
 
-    /// Returns the length of the serialized data.
+    /// Returns the number of bytes written or counted so far.
     fn len(&self) -> usize;
 
-    /// Checks if the buffer is empty.
+    /// Returns whether the writer contains zero encoded bytes.
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
 }
 
+/// Counts encoded bytes without retaining them.
+///
+/// Start at zero for the length of one value. Addition has the usual `usize`
+/// overflow behavior; this writer does not impose an output-size limit.
 impl Serializer for usize {
     fn prepend(&mut self, data: impl AsRef<[u8]>) -> Result<()> {
         *self += data.as_ref().len();

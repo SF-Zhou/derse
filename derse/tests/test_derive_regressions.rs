@@ -2,6 +2,21 @@ use std::{borrow::Cow, marker::PhantomData};
 
 use derse::{BytesArray, Deserialize, DownwardBytes, Error, Serialize};
 
+mod qualified_paths {
+    use derse::{Deserialize, Serialize};
+
+    #[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
+    pub struct Node<T>(pub T);
+
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
+    pub struct Tree<T: Serialize + for<'a> Deserialize<'a>> {
+        #[derse(required)]
+        pub value: T,
+        #[derse(recursive)]
+        pub children: Vec<crate::qualified_paths::Tree<T>>,
+    }
+}
+
 #[test]
 fn recursive_aliases_and_mutually_recursive_types_remain_supported() {
     type Children = Vec<Node>;
@@ -186,6 +201,192 @@ fn generic_bounds_follow_field_types() {
 }
 
 #[test]
+fn qualified_unrelated_traits_do_not_replace_derse_field_bounds() {
+    mod unrelated {
+        pub trait Serialize {}
+        pub trait Deserialize<'a> {}
+        pub trait Default {}
+
+        impl Serialize for u8 {}
+        impl Deserialize<'_> for u8 {}
+        impl Default for u8 {}
+    }
+
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
+    struct Message<'a, T: unrelated::Serialize + unrelated::Deserialize<'a> + unrelated::Default> {
+        value: T,
+        marker: PhantomData<&'a ()>,
+    }
+
+    let value = Message {
+        value: 7u8,
+        marker: PhantomData,
+    };
+    let bytes = value.serialize::<DownwardBytes>().unwrap();
+    let decoded: Message<'static, u8> = Message::deserialize(&bytes[..]).unwrap();
+    assert_eq!(decoded, value);
+    assert_eq!(Message::<u8>::deserialize(&[0][..]).unwrap().value, 0);
+}
+
+#[test]
+fn explicit_parameter_bounds_keep_complete_collection_and_wrapper_bounds() {
+    use std::collections::HashSet;
+
+    #[derive(Serialize, Deserialize)]
+    struct Set<T: Serialize + for<'a> Deserialize<'a>>(HashSet<T>);
+
+    let value = Set(HashSet::from([7u8]));
+    let bytes = value.serialize::<DownwardBytes>().unwrap();
+    assert_eq!(bytes.as_slice(), &[2, 1, 7]);
+    assert_eq!(Set::<u8>::deserialize(&bytes[..]).unwrap().0, value.0);
+    assert!(Set::<u8>::deserialize(&[0][..]).unwrap().0.is_empty());
+
+    #[derive(Debug, PartialEq)]
+    struct ExtraBounds<T>(T);
+
+    impl<T: Serialize + Clone> Serialize for ExtraBounds<T> {
+        fn serialize_to<S: derse::Serializer>(&self, serializer: &mut S) -> derse::Result<()> {
+            self.0.clone().serialize_to(serializer)
+        }
+    }
+
+    impl<'a, T: Deserialize<'a> + Ord> Deserialize<'a> for ExtraBounds<T> {
+        fn deserialize_from<D: derse::Deserializer<'a>>(input: &mut D) -> derse::Result<Self> {
+            T::deserialize_from(input).map(Self)
+        }
+    }
+
+    impl<T: Default + Clone> Default for ExtraBounds<T> {
+        fn default() -> Self {
+            Self(T::default().clone())
+        }
+    }
+
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
+    struct Message<T: Serialize + for<'a> Deserialize<'a> + Default>(ExtraBounds<T>);
+
+    let value = Message(ExtraBounds(8u8));
+    let bytes = value.serialize::<DownwardBytes>().unwrap();
+    assert_eq!(bytes.as_slice(), &[1, 8]);
+    assert_eq!(Message::<u8>::deserialize(&bytes[..]).unwrap(), value);
+    assert_eq!(
+        Message::<u8>::deserialize(&[0][..]).unwrap(),
+        Message(ExtraBounds(0))
+    );
+}
+
+#[test]
+fn qualified_paths_distinguish_other_types_and_explicit_recursive_fields() {
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
+    struct Node<T>(crate::qualified_paths::Node<T>);
+
+    let value = Node(qualified_paths::Node(7u8));
+    let bytes = value.serialize::<DownwardBytes>().unwrap();
+    assert_eq!(bytes.as_slice(), &[2, 1, 7]);
+    assert_eq!(Node::<u8>::deserialize(&bytes[..]).unwrap(), value);
+
+    let value = qualified_paths::Tree {
+        value: 7u8,
+        children: vec![qualified_paths::Tree {
+            value: 8,
+            children: Vec::new(),
+        }],
+    };
+    let bytes = value.serialize::<DownwardBytes>().unwrap();
+    assert_eq!(bytes.as_slice(), &[5, 7, 1, 2, 8, 0]);
+    assert_eq!(
+        qualified_paths::Tree::<u8>::deserialize(&bytes[..]).unwrap(),
+        value
+    );
+}
+
+#[test]
+fn projected_self_types_are_complete_fields_including_gat_arguments() {
+    trait Provider {
+        type Value;
+        type Other<U>;
+    }
+
+    #[derive(Serialize, Deserialize)]
+    struct Node<T>
+    where
+        Self: Provider,
+    {
+        value: <Self as Provider>::Value,
+        other: <Self as Provider>::Other<Self>,
+        marker: PhantomData<T>,
+    }
+
+    impl<T> Provider for Node<T> {
+        type Value = T;
+        type Other<U> = T;
+    }
+
+    #[derive(Serialize, Deserialize)]
+    struct Projection<T: Provider> {
+        value: T::Other<Self>,
+        marker: PhantomData<T>,
+    }
+
+    let value = Node::<u8> {
+        value: 7,
+        other: 8,
+        marker: PhantomData,
+    };
+    let bytes = value.serialize::<DownwardBytes>().unwrap();
+    assert_eq!(bytes.as_slice(), &[2, 7, 8]);
+    let decoded = Node::<u8>::deserialize(&bytes[..]).unwrap();
+    assert_eq!((decoded.value, decoded.other), (7, 8));
+
+    let value = Projection::<Node<u8>> {
+        value: 9,
+        marker: PhantomData,
+    };
+    let bytes = value.serialize::<DownwardBytes>().unwrap();
+    assert_eq!(
+        Projection::<Node<u8>>::deserialize(&bytes[..])
+            .unwrap()
+            .value,
+        9
+    );
+}
+
+#[test]
+fn explicit_and_higher_ranked_bounds_keep_input_lifetimes_independent() {
+    #[derive(Serialize, Deserialize)]
+    struct Explicit<'a, T: Deserialize<'a> + Default>(T, PhantomData<&'a ()>);
+
+    #[derive(Deserialize)]
+    struct Higher<T: for<'a> Deserialize<'a>>(#[derse(required)] T);
+
+    #[derive(Deserialize)]
+    struct HigherWhere<T>(#[derse(required)] T)
+    where
+        for<'a> T: Deserialize<'a>;
+
+    #[derive(Deserialize)]
+    struct Static<T: Deserialize<'static>>(#[derse(required)] T);
+
+    fn borrow<'input: 'a, 'a>(input: &'input [u8]) -> Explicit<'a, &'a str> {
+        Explicit::deserialize(input).unwrap()
+    }
+
+    let bytes = Explicit(7u8, PhantomData)
+        .serialize::<DownwardBytes>()
+        .unwrap();
+    let value: Explicit<'static, u8> = Explicit::deserialize(&bytes[..]).unwrap();
+    assert_eq!(value.0, 7);
+    assert_eq!(Higher::<u8>::deserialize(&bytes[..]).unwrap().0, 7);
+    assert_eq!(HigherWhere::<u8>::deserialize(&bytes[..]).unwrap().0, 7);
+    assert_eq!(Static::<u8>::deserialize(&bytes[..]).unwrap().0, 7);
+
+    let bytes = Explicit("borrowed", PhantomData)
+        .serialize::<DownwardBytes>()
+        .unwrap();
+    assert_eq!(borrow(&bytes[..]).0, "borrowed");
+}
+
+#[test]
 fn nonrecursive_type_paths_keep_automatic_field_bounds() {
     {
         mod other {
@@ -318,6 +519,7 @@ fn recursive_aliases_preserve_explicit_generic_bounds() {
             T: Serialize + for<'a> Deserialize<'a> + Default,
         {
             pub value: T,
+            #[derse(recursive)]
             pub children: Children<T>,
         }
     }
@@ -332,6 +534,7 @@ fn recursive_aliases_preserve_explicit_generic_bounds() {
         #[derive(Debug, Serialize, Deserialize, PartialEq)]
         pub struct Node<'a, T: Serialize + Deserialize<'a> + Default> {
             pub value: T,
+            #[derse(recursive)]
             pub children: Children<'a, T>,
             pub marker: PhantomData<&'a ()>,
         }
