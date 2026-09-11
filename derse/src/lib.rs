@@ -77,6 +77,12 @@
 //! follow field types: for example, `PhantomData<T>` does not require `T` to
 //! implement the serialization traits.
 //!
+//! `#[derse(recursive)]` marks generic recursion hidden behind a type alias or
+//! qualified path. It skips inferred serialization and deserialization bounds
+//! for the whole field; supply any required generic bounds explicitly. It can
+//! accompany a missing-field policy and does not remove its `Default` requirement.
+//! Recursion written as `Self` or the unqualified type name is detected automatically.
+//!
 //! # Borrowing and input consumption
 //!
 //! Borrowed outputs such as `&str` and `&[u8]` need a payload that the input can

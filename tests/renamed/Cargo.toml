@@ -5,4 +5,4 @@ edition.workspace = true
 publish = false
 
 [dependencies]
-ds = { package = "derse", path = "../../derse" }
+async = { package = "derse", path = "../../derse" }

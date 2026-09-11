@@ -1,5 +1,7 @@
 //! Integration coverage for using derse under a different dependency name.
 
+extern crate r#async as ds;
+
 #[cfg(test)]
 #[allow(dead_code, non_snake_case, non_upper_case_globals, unused_macros)]
 mod tests {
@@ -23,6 +25,17 @@ mod tests {
         };
     }
 
+    // The enum decoder must not resolve its tag conversion through caller traits.
+    trait TagAsRef {
+        fn as_ref(&self) -> &str;
+    }
+
+    impl TagAsRef for std::borrow::Cow<'_, str> {
+        fn as_ref(&self) -> &str {
+            "Unit"
+        }
+    }
+
     #[derive(Debug, PartialEq, ::ds::Serialize, ::ds::Deserialize)]
     struct Message<T> {
         value: T,
@@ -38,6 +51,10 @@ mod tests {
 
     #[test]
     fn renamed_dependency_and_shadowed_names() {
+        assert_eq!(
+            TagAsRef::as_ref(&std::borrow::Cow::Borrowed("Tuple")),
+            "Unit"
+        );
         let value = Message {
             value: 7u8,
             text: "hello".to_owned(),

@@ -10,8 +10,9 @@ checkout and do not indicate that a version has been published.
 
 ### Added
 
-- A dedicated Miri CI job for buffer memory safety and IPv4 decoding on a
-  big-endian target, with all features and strict provenance checking enabled.
+- A dedicated Miri CI job for buffer memory safety, IPv4 decoding on a big-endian
+  target, and input-length overflow on a 32-bit target, with all features and
+  strict provenance checking enabled.
 - A tag-triggered release workflow using crates.io trusted publishing to publish
   both crates in dependency order.
 - A wire-format reference, development guide, and workspace release procedure,
@@ -19,6 +20,9 @@ checkout and do not indicate that a version has been published.
 - Field attributes for derived deserialization: `#[derse(required)]`,
   `#[derse(default)]`, and `#[derse(default = "path::to_function")]`. Required
   fields and custom defaults do not require the field type to implement `Default`.
+- A `#[derse(recursive)]` field marker for generic recursion hidden behind type
+  aliases or qualified paths. It skips inferred serialization and deserialization
+  bounds for the whole field while preserving the selected missing-field policy.
 - Automatic field trait bounds for derived implementations, including generic
   fields, associated types, const generics, and recursive types.
 - Deserialization of zero-length arrays, extending the supported array lengths
@@ -51,6 +55,21 @@ checkout and do not indicate that a version has been published.
 
 ### Fixed
 
+- Reject a combined `BytesArray` fragment length above `usize::MAX` with a
+  consistent constructor panic, instead of silently wrapping in release builds.
+- Return `Error::InvalidValue("tinyvec capacity overflow")` for a `TinyVec` count
+  whose element allocation exceeds Rust's layout limit, before allocating or
+  reading elements. Preserve its inline storage and preallocation policy.
+- Infer complete generic field bounds even when a type parameter already has an
+  explicit trait bound, preserving collection and wrapper requirements such as
+  `Eq` and `Hash`. Keep the generated input lifetime independent of existing bounds.
+- Stop identifying existing traits by their names, so unrelated `Serialize`,
+  `Deserialize`, and `Default` traits cannot suppress required field bounds.
+- Treat qualified paths to another type as complete field types, including paths
+  whose final name matches the type being derived.
+- Dereference decoded enum tags directly so caller-defined `as_ref` methods do
+  not make generated deserializers ambiguous.
+- Generate valid runtime paths for keyword dependency aliases such as `async`.
 - Give `DownwardBytes` separate pointer, capacity, and initialized-tail length
   fields instead of using `Vec::set_len` over uninitialized bytes. Transfer
   allocation ownership through zero-length `Vec<u8>` values for allocation and
@@ -88,6 +107,11 @@ checkout and do not indicate that a version has been published.
   implementation writes its value `7` now encodes that value as `7`.
 - Fields accepted by the old derive solely through an inherent, dereferenced, or
   extension-trait `serialize_to` method now need to satisfy `derse::Serialize`.
+- Generic recursive aliases that relied on explicit parameter bounds to suppress
+  field inference, and recursion written through qualified module paths, may now
+  need `#[derse(recursive)]` on the field. Supply any required generic bounds
+  explicitly, including for nonrecursive parts of that field. The marker does
+  not change encoded bytes or default behavior.
 - Serializing arrays longer than 32 elements now fails during code generation
   (`cargo build`). This also applies to byte arrays and generic wrappers;
   `cargo check` alone does not evaluate the length assertion.

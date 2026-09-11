@@ -36,8 +36,16 @@ impl<'a> BytesArray<'a> {
     /// Starts a cursor over all fragments, including any empty fragments.
     ///
     /// Construction sums the fragment lengths without copying their contents.
+    ///
+    /// # Panics
+    ///
+    /// Panics if their combined length exceeds [`usize::MAX`]. Fragments can
+    /// borrow overlapping storage, so their total may exceed the address space.
     pub fn new(arr: &'a [&[u8]]) -> Self {
-        let len = arr.iter().map(|s| s.len()).sum();
+        let len = arr
+            .iter()
+            .try_fold(0usize, |len, fragment| len.checked_add(fragment.len()))
+            .expect("BytesArray input length exceeds usize::MAX");
         Self { arr, pos: 0, len }
     }
 
@@ -153,6 +161,17 @@ impl<'a> Deserializer<'a> for BytesArray<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(target_pointer_width = "32")]
+    #[test]
+    #[should_panic(expected = "BytesArray input length exceeds usize::MAX")]
+    fn combined_fragment_length_overflow_is_rejected() {
+        // Reusing a 1 MiB allocation produces 4 GiB of logical input on 32-bit
+        // targets without needing a correspondingly large allocation.
+        let payload = vec![0; 1 << 20];
+        let fragments = vec![payload.as_slice(); 4096];
+        BytesArray::new(&fragments);
+    }
 
     #[test]
     fn empty_arrays_allow_zero_length_operations() {

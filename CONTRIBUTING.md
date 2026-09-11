@@ -7,7 +7,7 @@
 | `derse/src` | Public traits, byte readers/writer, errors, and built-in type implementations. |
 | `derse-derive/src` | Input validation, generated implementations, and macro unit tests. |
 | `derse/tests` | Round trips, compatibility regressions, and compiler diagnostics. |
-| `tests/renamed` | A non-published crate that imports the runtime as `ds`. |
+| `tests/renamed` | A non-published crate with the keyword dependency alias `async`, aliased locally as `ds`. |
 
 Use a Unix host and the current stable Rust toolchain. The repository does not
 currently declare or test a minimum supported Rust version. Release commands
@@ -48,6 +48,18 @@ MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test -p derse --lib --a
 
 These tests decode fixed input bytes. They check IP decoding without exercising
 `DownwardBytes` or validating the rest of the runtime on that target.
+
+## 32-bit input lengths
+
+CI also checks that `BytesArray::new` rejects a combined fragment length that
+exceeds `usize::MAX`. Repeated references to the same slice can overflow the
+logical length without allocating several gigabytes. Run this test in release
+mode: debug overflow checks alone would miss a regression that silently wraps
+the length in release builds.
+
+```sh
+MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test -p derse --lib --all-features --release --target i686-unknown-linux-gnu combined_fragment_length_overflow_is_rejected
+```
 
 ## Coverage
 

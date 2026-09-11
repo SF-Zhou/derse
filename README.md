@@ -82,9 +82,20 @@ payload must be borrowable too.
 ## Derive and schema changes
 
 The macros support named, tuple, and unit structs and enum variants, including
-generic and borrowed fields. They infer field trait bounds while respecting
+generic and borrowed fields. They infer complete field trait bounds and preserve
 existing bounds. A `PhantomData<T>` field does not require `T` to be serializable.
 Unions are unsupported.
+
+Recursion written as `Self` or the unqualified type name is detected automatically.
+For generic recursion hidden behind a type alias or qualified module path, add
+`#[derse(recursive)]` to the field and supply the required generic parameter
+bounds yourself. This skips automatic serialization and deserialization bounds
+for that whole field, including any nonrecursive parts. Its missing-field policy
+and `Default` requirement are unchanged; the marker can be combined with any one
+policy below. Existing recursive aliases that relied on explicit parameter bounds
+to suppress field inference now need this marker. The
+[derive crate documentation](https://github.com/SF-Zhou/derse/blob/main/derse-derive/src/lib.rs)
+includes an example; run `cargo doc` to read it locally.
 
 Derived values encode fields in declaration order. Enum variants use their Rust
 identifier spelling as a string tag, rather than a numeric discriminant.
@@ -157,8 +168,9 @@ dependency's `features` list, for example `features = ["full"]`.
 
 Run `cargo test --workspace --all-features` for the workspace tests and documentation
 examples. CI requires 100% Rust line coverage across the runtime and derive crates.
-It also runs Miri checks for buffer memory safety and IPv4 decoding on a big-endian
-target, with all features and strict provenance checking enabled.
+It also runs Miri checks for buffer memory safety, IPv4 decoding on a big-endian
+target, and input-length overflow on a 32-bit target, with all features and strict
+provenance checking enabled.
 
 ## License
 

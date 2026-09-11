@@ -168,6 +168,10 @@ fields is readable by older schemas only if their missing-field policies permit
 it. Renaming a variant changes its tag; adding a variant requires readers that
 understand that tag. Field attributes do not alter serialized output.
 
+`#[derse(recursive)]` only controls inferred trait bounds for fields whose generic
+recursion is hidden behind an alias or qualified path. It does not change field
+order, missing-field policies, or encoded bytes.
+
 ## Input behavior and limits
 
 `Deserialize::deserialize` permits unused bytes after the decoded value. Use
@@ -181,6 +185,13 @@ non-empty read, produces an owned intermediate buffer. Borrowed targets reject
 owned payloads. `Cow<str>` and `Cow<[u8]>` handle either case; `String` and the
 owned OS/path/C-string types can also decode fragmented payloads. `CompactString`
 currently uses the borrowed string decoder and shares its restriction.
+
+`BytesArray::new` panics if the combined fragment length exceeds `usize::MAX`,
+including in release builds. `TinyVec` rejects a count whose element allocation
+exceeds Rust's layout limit with `Error::InvalidValue("tinyvec capacity overflow")`
+after consuming the count prefix and before reading any elements. This capacity
+check does not impose an application resource limit or make allocation failures
+recoverable.
 
 Lengths and counts do not have configurable resource limits. Applications should
 bound message sizes and collection counts where necessary. Zero-byte element

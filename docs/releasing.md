@@ -64,8 +64,9 @@ RUSTDOCFLAGS="-D warnings -D missing_docs" cargo doc --workspace --all-features 
 cargo llvm-cov --workspace --release --all-features --fail-under-lines 100
 ```
 
-Also run the [buffer Miri checks](../CONTRIBUTING.md#buffer-memory-safety) and
-[big-endian IPv4 checks](../CONTRIBUTING.md#big-endian-ipv4-decoding). CI runs these
+Also run the [buffer Miri checks](../CONTRIBUTING.md#buffer-memory-safety),
+[big-endian IPv4 checks](../CONTRIBUTING.md#big-endian-ipv4-decoding), and
+[32-bit input-length check](../CONTRIBUTING.md#32-bit-input-lengths). CI runs these
 in its dedicated `miri` job alongside the stable build and coverage checks.
 
 Review the changes and prepare the changelog's release section. Keep `Unreleased`
