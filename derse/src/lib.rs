@@ -51,6 +51,10 @@
 //! - `Option<T>` begins with `0` for `None` or `1` followed by the `Some` value.
 //!   `Result<T, E>` uses `1` before an `Ok` value and `0` before an `Err` value.
 //!   IP addresses, socket addresses, and `Duration` are also supported.
+//! - `Box<T>`, `Rc<T>`, and `Arc<T>` encode exactly like `T`. They support
+//!   decoding sized values and the unsized targets `str`, `[u8]`, `CStr`,
+//!   `OsStr`, and `Path`. Each decoded pointer owns a new value; sharing and
+//!   reference counts are not preserved, and cycles are unsupported.
 //!
 //! # Derived types and schema changes
 //!
