@@ -19,7 +19,7 @@ To use the stable `0.2` release series, add:
 
 ```toml
 [dependencies]
-derse = "0.2"
+derse = "0.2.1"
 ```
 
 The runtime re-exports both derive macros and depends on the exact matching

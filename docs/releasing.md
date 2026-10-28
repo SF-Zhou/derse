@@ -37,8 +37,9 @@ matter to consumers:
 | `derse = "0.2.0-alpha"` | Can upgrade to later prereleases of `0.2.0` and compatible stable releases. |
 | `derse = "=0.2.0-alpha"` | Stays on that exact alpha until the requirement changes. |
 
-The README uses `derse = "0.2"` so applications receive compatible stable
-updates. When documenting prerelease testing, use an exact requirement such as
+The README uses `derse = "0.2.1"` so applications receive compatible stable
+updates starting with the features documented in this checkout. When documenting
+prerelease testing, use an exact requirement such as
 `derse = "=0.2.0-alpha"` to keep testing on that prerelease. The runtime always
 pins its own derive dependency exactly, including on stable releases. Because
 this is still a `0.x` library, moving from `0.1` to `0.2` is the
@@ -114,11 +115,11 @@ registry token secret is unnecessary.
 
 Once verification is complete and the release has been authorized, tag the
 reviewed release commit as `v<workspace.package.version>` and push the tag. For
-`0.2.0`:
+`0.2.1`:
 
 ```sh
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.2.1
+git push origin v0.2.1
 ```
 
 The workflow runs `cargo publish --workspace --all-features --registry crates-io`

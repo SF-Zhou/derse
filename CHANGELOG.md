@@ -8,6 +8,8 @@ checkout and do not indicate that a version has been published.
 
 ## Unreleased
 
+## 0.2.1
+
 ### Added
 
 - Optional `thin-vec` feature for `thin_vec::ThinVec<T>` serialization and
