@@ -138,10 +138,18 @@ still depends on preserving the meaning and encoding of existing fields.
 ## Types and features
 
 Built-in implementations cover primitive values, strings and byte slices,
-tuples, arrays, common collections, paths, C strings, socket addresses, and
-durations. See the
+tuples, arrays, common collections, smart pointers, paths, C strings, socket
+addresses, and durations. See the
 [wire format](https://github.com/SF-Zhou/derse/blob/main/docs/wire-format.md)
 for their exact layouts and current limitations.
+
+`Box<T>`, `Rc<T>`, and `Arc<T>` serialize through `T`, including unsized targets
+that implement `Serialize`. They deserialize sized payloads implementing
+`Deserialize`, plus `str`, `[u8]`, `CStr`, `OsStr`, and `Path`. These five unsized
+targets decode through their owned forms and accept fragmented payloads.
+Pointers add no bytes to the payload's encoding. Each decoded `Rc` or `Arc` has
+independent ownership; shared identity and cycles are not preserved. General
+`[T]` slices, `Pin`, `Weak`, and raw pointers have no built-in trait implementations.
 
 Arrays `[T; N]` support lengths `0..=32` and have no length prefix. Deserialization
 constructs the array directly. Serializing a longer array fails during code

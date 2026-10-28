@@ -66,6 +66,22 @@ References serialize like their referents. The generic `Cow<T>` implementation
 for `T: ToOwned<Owned = T>` also uses `T`'s encoding and decodes to `Cow::Owned`.
 Borrowing or ownership is not recorded in the bytes.
 
+## Smart pointers
+
+`Box<T>`, `Rc<T>`, and `Arc<T>` use exactly `T`'s encoding, with no pointer tag,
+address, reference count, or additional length prefix. Serialization accepts
+unsized targets when they implement `Serialize`. Deserialization constructs a
+new pointer around a decoded sized `T`, or decodes `str`, `[u8]`, `CStr`, `OsStr`,
+and `Path` through their corresponding owned forms. These unsized outputs accept
+fragmented payloads. A sized payload containing borrowed values still observes
+those values' input-borrowing requirements.
+
+Every occurrence is serialized independently. Decoding two `Rc` or `Arc` values
+that originally shared an allocation produces separate ownership groups with
+equal contents. Pointer identity and cycles are not represented in this format.
+General `[T]` slices, `Pin`, `Weak`, and raw pointers have no built-in trait
+implementations.
+
 ## Arrays, tuples, and collections
 
 Tuples of arity 1 through 16 and arrays concatenate their elements in index order

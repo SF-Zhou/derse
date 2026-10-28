@@ -8,6 +8,13 @@ checkout and do not indicate that a version has been published.
 
 ## Unreleased
 
+### Added
+
+- Serialization and deserialization for `Box<T>`, `Rc<T>`, and `Arc<T>`, including
+  owned `str`, `[u8]`, `CStr`, `OsStr`, and `Path` targets. Pointer wrappers use the
+  payload's existing encoding without additional bytes; decoded shared pointers
+  have independent ownership and do not preserve pointer identity or cycles.
+
 ## 0.2.0 - 2026-09-11
 
 ### Changed

@@ -11,6 +11,7 @@ mod duration;
 mod osstr;
 mod pathbuf;
 mod phantom_data;
+mod pointer;
 mod primitive;
 mod result;
 mod socket_addr;
