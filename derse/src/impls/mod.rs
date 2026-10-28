@@ -20,5 +20,7 @@ mod tuple;
 
 #[cfg(feature = "compact_str")]
 mod compact_str;
+#[cfg(feature = "thin-vec")]
+mod thin_vec;
 #[cfg(feature = "tinyvec")]
 mod tinyvec;

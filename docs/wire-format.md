@@ -102,7 +102,7 @@ entry as `key || value`. Their iteration choices determine final wire order:
 
 | Collection | Order of elements or entries on the wire |
 | --- | --- |
-| `Vec`, `VecDeque`, `LinkedList`, `TinyVec` | Logical index/iteration order. |
+| `Vec`, `VecDeque`, `LinkedList`, `TinyVec`, `ThinVec` | Logical index/iteration order. |
 | `BinaryHeap` | `heap.iter()` order, without sorting. |
 | `BTreeSet`, `BTreeMap` | Reverse iteration order, so largest elements/keys first. |
 | `HashSet`, `HashMap` | Reverse of their unspecified iteration order. |
@@ -112,6 +112,12 @@ serialize to identical bytes. Decoders collect the encoded elements into the
 target collection; duplicate set elements and duplicate map keys follow that
 collection's `FromIterator` behavior. The count is the number of entries read,
 not necessarily the final collection's length.
+
+The optional `thin-vec` feature adds `thin_vec::ThinVec<T>`. Its encoding is
+identical to `Vec<T>`, including the element count prefix and element order;
+either collection can decode bytes produced by the other when their element
+types use the same encoding. `full` enables this integration along with
+`compact_str` and `tinyvec`.
 
 ## Tagged built-in types
 
@@ -211,9 +217,11 @@ recoverable.
 
 Lengths and counts do not have configurable resource limits. Applications should
 bound message sizes and collection counts where necessary. Zero-byte element
-types can consume work without consuming payload bytes. `u64` lengths and decoded
-`usize`/`isize` values are cast to platform-sized integers without range checks,
-so oversized values can truncate on narrower targets. The runtime currently
+types can consume work without consuming payload bytes. Most `u64` lengths and
+counts, and decoded `usize`/`isize` values, are cast to platform-sized integers
+without range checks, so oversized values can truncate on narrower targets.
+`ThinVec` decoding keeps its element count as `u64` and builds the collection
+incrementally without reserving the advertised count. The runtime currently
 requires Unix; cross-platform support is not implied by a fixed byte layout.
 
 See [the changelog](../CHANGELOG.md) for compatibility changes since the previous
