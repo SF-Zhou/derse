@@ -159,11 +159,15 @@ Byte slices and `Vec<u8>` have a length prefix, unlike fixed-size byte arrays.
 | Feature | Additional implementation |
 | --- | --- |
 | `compact_str` | `compact_str::CompactString` |
+| `thin-vec` | `thin_vec::ThinVec` |
 | `tinyvec` | `tinyvec::TinyVec` |
-| `full` | Both optional integrations |
+| `full` | All three optional integrations |
 
 No optional integrations are enabled by default. Enable a feature through the
-dependency's `features` list, for example `features = ["full"]`.
+dependency's `features` list, for example `features = ["thin-vec"]` or
+`features = ["full"]`. `ThinVec<T>` uses the same count-prefixed encoding as
+`Vec<T>` and preserves element order, so either type can read the other's bytes
+when their element types use the same encoding.
 
 ## Documentation and development
 

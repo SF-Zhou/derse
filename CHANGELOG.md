@@ -10,6 +10,10 @@ checkout and do not indicate that a version has been published.
 
 ### Added
 
+- Optional `thin-vec` feature for `thin_vec::ThinVec<T>` serialization and
+  deserialization, also enabled by `full`. Its encoding matches `Vec<T>` and
+  preserves element order. Decoding retains the element count as `u64` and
+  builds the collection incrementally without reserving the advertised count.
 - Serialization and deserialization for `Box<T>`, `Rc<T>`, and `Arc<T>`, including
   owned `str`, `[u8]`, `CStr`, `OsStr`, and `Path` targets. Pointer wrappers use the
   payload's existing encoding without additional bytes; decoded shared pointers

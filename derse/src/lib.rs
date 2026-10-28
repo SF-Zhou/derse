@@ -101,10 +101,11 @@
 //!
 //! # Features and platforms
 //!
-//! The `compact_str` feature adds `CompactString` support, and `tinyvec` adds
-//! `TinyVec` support. `full` enables both. `CompactString` currently decodes
-//! through `&str`, so its payload must be borrowable even though the output is
-//! owned. `TinyVec` uses the same count-prefixed encoding as `Vec`.
+//! The `compact_str` feature adds `CompactString` support, `thin-vec` adds
+//! `ThinVec`, and `tinyvec` adds `TinyVec`. `full` enables all three integrations.
+//! `CompactString` currently decodes through `&str`, so its payload must be
+//! borrowable even though the output is owned. `ThinVec` and `TinyVec` use the
+//! same count-prefixed encoding as `Vec`.
 //!
 //! The crate requires `std` and currently targets Unix: its operating-system
 //! string implementation unconditionally uses `std::os::unix`.
